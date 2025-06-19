@@ -44,7 +44,8 @@ nb-configuration.xml
 .goose
 node_modules
 
-
-
 .nx/cache
 .nx/workspace-data
+.cursorindexingignore
+.claude
+.specstory

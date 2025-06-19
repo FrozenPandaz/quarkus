@@ -30,6 +30,7 @@ object CreateDependenciesGenerator {
 
         // Extract workspace projects
         val artifactToProject = buildArtifactMapping(projects)
+        val projectKeyToProject = buildProjectMapping(projects)
 
         if (verbose && log != null) {
             log.info("Built artifact mapping for ${artifactToProject.size} workspace projects")
@@ -49,7 +50,7 @@ object CreateDependenciesGenerator {
 
             // 1. Static dependencies - direct Maven dependencies
             val prevStatic = staticDeps
-            staticDeps += addStaticDependencies(dependencies, project, artifactToProject, sourceFile)
+            staticDeps += addStaticDependencies(dependencies, project, artifactToProject, projectKeyToProject, workspaceRoot, sourceFile)
 
             // 2. Skip implicit dependencies for better performance
             // They're rarely needed and cause O(n²) complexity
@@ -87,6 +88,20 @@ object CreateDependenciesGenerator {
     }
 
     /**
+     * Build mapping from project key to MavenProject for workspace projects
+     */
+    private fun buildProjectMapping(projects: List<MavenProject>): Map<String, MavenProject> {
+        val mapping = mutableMapOf<String, MavenProject>()
+        for (project in projects) {
+            if (project.groupId != null && project.artifactId != null) {
+                val key = MavenUtils.formatProjectKey(project)
+                mapping[key] = project
+            }
+        }
+        return mapping
+    }
+
+    /**
      * Add static dependencies (explicit Maven dependencies between workspace projects)
      * Returns: number of dependencies added
      */
@@ -94,6 +109,8 @@ object CreateDependenciesGenerator {
         dependencies: MutableList<RawProjectGraphDependency>,
         project: MavenProject,
         artifactToProject: Map<String, String>,
+        projectKeyToProject: Map<String, MavenProject>,
+        workspaceRoot: File,
         sourceFile: String
     ): Int {
         val source = MavenUtils.formatProjectKey(project)
@@ -108,11 +125,22 @@ object CreateDependenciesGenerator {
                     // Check if this dependency refers to another project in workspace
                     val target = artifactToProject[depKey]
                     if (target != null && target != source) {
-                        val dependency = RawProjectGraphDependency(
-                            source, target, RawProjectGraphDependency.DependencyType.STATIC, sourceFile
-                        )
-                        dependencies.add(dependency)
-                        count++
+                        // Get the actual target project and verify its pom.xml exists
+                        val targetProject = projectKeyToProject[target]
+                        if (targetProject != null) {
+                            val targetPomFile = File(targetProject.basedir, "pom.xml")
+                            if (targetPomFile.exists()) {
+                                val dependency = RawProjectGraphDependency(
+                                    source, target, RawProjectGraphDependency.DependencyType.STATIC, sourceFile
+                                )
+                                dependencies.add(dependency)
+                                count++
+                            } else {
+                                System.err.println("Warning: Skipping dependency from $source to $target - target pom.xml not found: ${targetPomFile.absolutePath}")
+                            }
+                        } else {
+                            System.err.println("Warning: Skipping dependency from $source to $target - target project not found in workspace")
+                        }
                     }
                 }
             }
