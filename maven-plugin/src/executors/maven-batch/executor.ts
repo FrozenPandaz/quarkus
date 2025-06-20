@@ -157,25 +157,35 @@ export default async function runExecutor(
       return { success: false, terminalOutput: error, error };
     }
 
-    // Log results
-    if (verbose || !result.overallSuccess) {
+    // Log results - handle both old underscore fields and new public fields
+    const overallSuccess = result.overallSuccess ?? (result as any)._overallSuccess;
+    const errorMessage = result.errorMessage ?? (result as any)._errorMessage;
+    const goalResults = result.goalResults ?? (result as any)._goalResults;
+    
+    if (verbose || !overallSuccess) {
       logger.info(`Maven batch execution completed in ${duration}ms`);
-      logger.info(`Overall success: ${result.overallSuccess}`);
+      logger.info(`Overall success: ${overallSuccess}`);
       
-      if (result.errorMessage) {
-        logger.error(`Error: ${result.errorMessage}`);
+      if (errorMessage) {
+        logger.error(`Error: ${errorMessage}`);
       }
 
-      result.goalResults.forEach((goalResult, index) => {
-        const status = goalResult.success ? '✅' : '❌';
-        logger.info(`${status} Goal ${index + 1}: ${goalResult.goal} (${goalResult.durationMs}ms)`);
+      goalResults.forEach((goalResult: any, index: number) => {
+        const success = goalResult.success ?? goalResult._success;
+        const goal = goalResult.goal ?? goalResult._goal;
+        const durationMs = goalResult.durationMs ?? goalResult._durationMs;
+        const errors = goalResult.errors ?? goalResult._errors;
+        const output = goalResult.output ?? goalResult._output;
         
-        if (!goalResult.success && goalResult.errors.length > 0) {
-          goalResult.errors.forEach(error => logger.error(`  Error: ${error}`));
+        const status = success ? '✅' : '❌';
+        logger.info(`${status} Goal ${index + 1}: ${goal} (${durationMs}ms)`);
+        
+        if (!success && errors.length > 0) {
+          errors.forEach((error: string) => logger.error(`  Error: ${error}`));
         }
         
-        if (verbose && goalResult.output.length > 0) {
-          logger.debug(`  Output: ${goalResult.output.slice(-5).join('\n  ')}`); // Last 5 lines
+        if (verbose && output.length > 0) {
+          logger.debug(`  Output: ${output.slice(-5).join('\n  ')}`); // Last 5 lines
         }
       });
     }
@@ -189,21 +199,21 @@ export default async function runExecutor(
       }
     }
 
-    // Determine success
-    const success = result.overallSuccess || !failOnError;
+    // Determine success - handle both field formats
+    const success = overallSuccess || !failOnError;
     
     if (!success && failOnError) {
       logger.error(`Maven batch execution failed`);
-      if (result.errorMessage) {
-        logger.error(result.errorMessage);
+      if (errorMessage) {
+        logger.error(errorMessage);
       }
     }
 
     return {
       success,
-      terminalOutput: result.goalResults.map(r => r.output.join('\n')).join('\n'),
+      terminalOutput: goalResults.map((r: any) => ((r.output ?? r._output) || []).join('\n')).join('\n'),
       output: result,
-      error: result.errorMessage
+      error: errorMessage
     };
 
   } catch (error: any) {
@@ -272,10 +282,13 @@ export async function batchMavenExecutor(
     const batchResult = await executeMultiProjectMavenBatch(uniqueGoals, uniqueProjects, batchOptions, process.cwd());
     
     // All tasks get the same result (success/failure of the entire batch)
+    const batchSuccess = batchResult.overallSuccess ?? (batchResult as any)._overallSuccess;
+    const batchGoalResults = batchResult.goalResults ?? (batchResult as any)._goalResults;
+    
     for (const taskId of taskIds) {
       results[taskId] = {
-        success: batchResult.overallSuccess,
-        terminalOutput: batchResult.goalResults.map(r => r.output.join('\n')).join('\n')
+        success: batchSuccess,
+        terminalOutput: batchGoalResults.map((r: any) => ((r.output ?? r._output) || []).join('\n')).join('\n')
       };
     }
     
@@ -374,16 +387,24 @@ async function executeMultiProjectMavenBatch(
   const result: MavenBatchResult = JSON.parse(jsonOutput);
   
   if (verbose) {
-    logger.info(`Multi-project Maven batch execution completed`);
-    logger.info(`Overall success: ${result.overallSuccess}`);
+    const overallSuccess = result.overallSuccess ?? (result as any)._overallSuccess;
+    const errorMessage = result.errorMessage ?? (result as any)._errorMessage;
+    const goalResults = result.goalResults ?? (result as any)._goalResults;
     
-    if (result.errorMessage) {
-      logger.error(`Error: ${result.errorMessage}`);
+    logger.info(`Multi-project Maven batch execution completed`);
+    logger.info(`Overall success: ${overallSuccess}`);
+    
+    if (errorMessage) {
+      logger.error(`Error: ${errorMessage}`);
     }
 
-    result.goalResults.forEach((goalResult, index) => {
-      const status = goalResult.success ? '✅' : '❌';
-      logger.info(`${status} Goal ${index + 1}: ${goalResult.goal} (${goalResult.durationMs}ms)`);
+    goalResults.forEach((goalResult: any, index: number) => {
+      const success = goalResult.success ?? goalResult._success;
+      const goal = goalResult.goal ?? goalResult._goal;
+      const durationMs = goalResult.durationMs ?? goalResult._durationMs;
+      
+      const status = success ? '✅' : '❌';
+      logger.info(`${status} Goal ${index + 1}: ${goal} (${durationMs}ms)`);
     });
   }
   

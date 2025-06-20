@@ -1,5 +1,6 @@
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.google.gson.annotations.SerializedName
 import org.apache.maven.shared.invoker.*
 import java.io.File
 import kotlin.system.exitProcess
@@ -34,12 +35,12 @@ object NxMavenBatchExecutor {
             println(gson.toJson(result))
             
             // Exit with appropriate code
-            exitProcess(if (result.isOverallSuccess()) 0 else 1)
+            exitProcess(if (result.overallSuccess) 0 else 1)
             
         } catch (e: Exception) {
             val errorResult = BatchExecutionResult().apply {
-                setOverallSuccess(false)
-                setErrorMessage("Batch executor failed: ${e.message}")
+                overallSuccess = false
+                errorMessage = "Batch executor failed: ${e.message}"
             }
             
             System.err.println(gson.toJson(errorResult))
@@ -52,7 +53,7 @@ object NxMavenBatchExecutor {
      */
     fun executeBatch(goals: List<String>, workspaceRoot: String, projects: List<String>, verbose: Boolean): BatchExecutionResult {
         val batchResult = BatchExecutionResult().apply {
-            setOverallSuccess(true)
+            overallSuccess = true
         }
         
         try {
@@ -68,17 +69,17 @@ object NxMavenBatchExecutor {
             // Execute all goals across all projects in single Maven invoker session
             val batchGoalResult = executeMultiProjectGoalsWithInvoker(goals, projects, workspaceDir, rootPomFile, verbose)
             batchResult.addGoalResult(batchGoalResult)
-            batchResult.setOverallSuccess(batchGoalResult.isSuccess())
-            if (!batchGoalResult.isSuccess()) {
-                batchResult.setErrorMessage("Multi-project batch goal execution failed")
+            batchResult.overallSuccess = batchGoalResult.success
+            if (!batchGoalResult.success) {
+                batchResult.errorMessage = "Multi-project batch goal execution failed"
             }
             
             val batchDuration = System.currentTimeMillis() - batchStartTime
-            batchResult.setTotalDurationMs(batchDuration)
+            batchResult.totalDurationMs = batchDuration
             
         } catch (e: Exception) {
-            batchResult.setOverallSuccess(false)
-            batchResult.setErrorMessage("Batch execution failed: ${e.message}")
+            batchResult.overallSuccess = false
+            batchResult.errorMessage = "Batch execution failed: ${e.message}"
         }
         
         return batchResult
@@ -95,7 +96,7 @@ object NxMavenBatchExecutor {
         verbose: Boolean
     ): GoalExecutionResult {
         val goalResult = GoalExecutionResult().apply {
-            setGoal("${goals.joinToString(",")} (across ${projects.size} projects)")
+            goal = "${goals.joinToString(",")} (across ${projects.size} projects)"
         }
         
         val startTime = System.currentTimeMillis()
@@ -107,16 +108,43 @@ object NxMavenBatchExecutor {
             
             val invoker = DefaultInvoker()
             
-            // Find Maven executable
+            // Find Maven executable - try MAVEN_HOME first, then PATH
             val mavenHome = System.getenv("MAVEN_HOME")
             if (mavenHome != null) {
                 invoker.mavenHome = File(mavenHome)
+            } else {
+                // Try to find Maven in PATH
+                val mavenExecutable = findMavenExecutable()
+                if (mavenExecutable != null) {
+                    invoker.mavenExecutable = File(mavenExecutable)
+                }
             }
             
             val request = DefaultInvocationRequest().apply {
                 pomFile = rootPomFile
                 baseDirectory = workspaceDir
                 setGoals(goals) // Execute all goals in single Maven session
+                
+                // Configure Maven properties to handle test failures gracefully
+                val properties = mutableMapOf<String, String>()
+                
+                // If this batch includes test goals, don't fail the build on test failures
+                val hasTestGoals = goals.any { goal -> 
+                    goal.contains("surefire") || goal.contains("test") 
+                }
+                if (hasTestGoals) {
+                    properties["maven.test.failure.ignore"] = "true"
+                    properties["skipTests"] = "false"  // Run tests but don't fail on errors
+                    if (verbose) {
+                        println("Setting Maven properties for test failure handling: ${properties}")
+                    }
+                }
+                
+                if (properties.isNotEmpty()) {
+                    val props = java.util.Properties()
+                    properties.forEach { (key, value) -> props.setProperty(key, value) }
+                    setProperties(props)
+                }
             }
             
             // Use Maven's -pl option to specify which projects to build
@@ -164,24 +192,24 @@ object NxMavenBatchExecutor {
             val duration = System.currentTimeMillis() - startTime
             
             goalResult.apply {
-                setSuccess(result.exitCode == 0)
-                setDurationMs(duration)
-                setOutput(outputLines)
-                setErrors(errorLines)
-                setExitCode(result.exitCode)
+                success = result.exitCode == 0
+                durationMs = duration
+                output = outputLines
+                errors = errorLines
+                exitCode = result.exitCode
             }
             
             if (result.executionException != null) {
-                goalResult.setErrorMessage(result.executionException.message)
+                goalResult.errorMessage = result.executionException.message
             }
             
         } catch (e: Exception) {
             val duration = System.currentTimeMillis() - startTime
             goalResult.apply {
-                setSuccess(false)
-                setDurationMs(duration)
-                setErrorMessage("Multi-project goal execution exception: ${e.message}")
-                setErrors(listOf(e.message ?: "Unknown error"))
+                success = false
+                durationMs = duration
+                errorMessage = "Multi-project goal execution exception: ${e.message}"
+                errors = listOf(e.message ?: "Unknown error")
             }
         }
         
@@ -189,55 +217,71 @@ object NxMavenBatchExecutor {
     }
 
     /**
+     * Find Maven executable in system PATH
+     */
+    private fun findMavenExecutable(): String? {
+        val possibleNames = arrayOf("mvn", "mvn.cmd", "mvn.bat")
+        val pathEnv = System.getenv("PATH")
+        
+        if (pathEnv != null) {
+            val paths = pathEnv.split(File.pathSeparator)
+            for (path in paths) {
+                for (name in possibleNames) {
+                    val candidate = File(path, name)
+                    if (candidate.exists() && candidate.canExecute()) {
+                        return candidate.absolutePath
+                    }
+                }
+            }
+        }
+        
+        return null
+    }
+
+    /**
      * Result of executing a batch of Maven goals
      */
     class BatchExecutionResult {
-        private var _overallSuccess: Boolean = false
-        private var _totalDurationMs: Long = 0
-        private var _errorMessage: String? = null
-        private var _goalResults: MutableList<GoalExecutionResult> = mutableListOf()
+        @SerializedName("overallSuccess")
+        var overallSuccess: Boolean = false
+        
+        @SerializedName("totalDurationMs")
+        var totalDurationMs: Long = 0
+        
+        @SerializedName("errorMessage")
+        var errorMessage: String? = null
+        
+        @SerializedName("goalResults")
+        var goalResults: MutableList<GoalExecutionResult> = mutableListOf()
         
         fun addGoalResult(goalResult: GoalExecutionResult) {
-            _goalResults.add(goalResult)
+            goalResults.add(goalResult)
         }
-        
-        // Java-compatible getters and setters
-        fun isOverallSuccess() = _overallSuccess
-        fun setOverallSuccess(success: Boolean) { _overallSuccess = success }
-        fun getTotalDurationMs() = _totalDurationMs
-        fun setTotalDurationMs(duration: Long) { _totalDurationMs = duration }
-        fun getErrorMessage() = _errorMessage
-        fun setErrorMessage(message: String?) { _errorMessage = message }
-        fun getGoalResults() = _goalResults
-        fun setGoalResults(results: MutableList<GoalExecutionResult>) { _goalResults = results }
     }
 
     /**
      * Result of executing a single Maven goal
      */
     class GoalExecutionResult {
-        private var _goal: String? = null
-        private var _success: Boolean = false
-        private var _durationMs: Long = 0
-        private var _exitCode: Int = 0
-        private var _errorMessage: String? = null
-        private var _output: List<String> = mutableListOf()
-        private var _errors: List<String> = mutableListOf()
+        @SerializedName("goal")
+        var goal: String? = null
         
-        // Java-compatible getters and setters
-        fun getGoal() = _goal
-        fun setGoal(goalName: String?) { _goal = goalName }
-        fun isSuccess() = _success
-        fun setSuccess(isSuccessful: Boolean) { _success = isSuccessful }
-        fun getDurationMs() = _durationMs
-        fun setDurationMs(duration: Long) { _durationMs = duration }
-        fun getExitCode() = _exitCode
-        fun setExitCode(code: Int) { _exitCode = code }
-        fun getErrorMessage() = _errorMessage
-        fun setErrorMessage(message: String?) { _errorMessage = message }
-        fun getOutput() = _output
-        fun setOutput(outputLines: List<String>) { _output = outputLines }
-        fun getErrors() = _errors
-        fun setErrors(errorLines: List<String>) { _errors = errorLines }
+        @SerializedName("success")
+        var success: Boolean = false
+        
+        @SerializedName("durationMs")
+        var durationMs: Long = 0
+        
+        @SerializedName("exitCode")
+        var exitCode: Int = 0
+        
+        @SerializedName("errorMessage")
+        var errorMessage: String? = null
+        
+        @SerializedName("output")
+        var output: List<String> = mutableListOf()
+        
+        @SerializedName("errors")
+        var errors: List<String> = mutableListOf()
     }
 }

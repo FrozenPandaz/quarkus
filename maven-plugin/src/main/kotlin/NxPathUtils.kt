@@ -45,6 +45,15 @@ object NxPathUtils {
     @JvmStatic
     fun getRelativePomPath(project: MavenProject, workspaceRoot: File): String {
         val pomFile = File(project.basedir, "pom.xml")
+        
+        // Check if the pom.xml file actually exists
+        if (!pomFile.exists()) {
+            System.err.println("Warning: pom.xml file does not exist: ${pomFile.absolutePath}")
+            // Still return the path for Nx, but Nx will handle the missing file error
+            val relativePath = getRelativePath(workspaceRoot, pomFile)
+            return if (relativePath.isEmpty()) "pom.xml" else relativePath
+        }
+        
         val relativePath = getRelativePath(workspaceRoot, pomFile)
         return if (relativePath.isEmpty()) "pom.xml" else relativePath
     }
