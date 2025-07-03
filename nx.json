@@ -18,6 +18,6 @@
     "projectNameAndRootFormat": "as-provided"
   },
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
-  "nxCloudUrl": "https://staging.nx.app",
-  "nxCloudId": "6851e8640ed81802ffc6674f"
+  "nxCloudUrl": "http://localhost:4203",
+  "nxCloudId": "68663076b897a552b0bff61a"
 }
