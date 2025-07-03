@@ -16,4 +16,4 @@ launch-templates:
       - name: Install Node Modules
         uses: 'nrwl/nx-cloud-workflows/v4/workflow-steps/install-node-modules/main.yaml'
       - name: Compile Maven Plugin
-        script: bash -c 'npm run compile-java:fresh'
+        script: bash -c 'rm -rf maven-plugin/target && cd maven-plugin && ../mvnw clean install -DskipTests -Ddevelocity.cache.local.enabled=false'
