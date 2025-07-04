@@ -2,9 +2,7 @@
   "plugins": [
     {
       "plugin": "./maven-plugin",
-      "options": {
-        "mavenExecutable": "mvn"
-      }
+      "options": {}
     }
   ],
   "pluginsConfig": {

@@ -14,13 +14,10 @@ import { workspaceDataDirectory } from 'nx/src/utils/cache-directory';
 import { calculateHashForCreateNodes } from '@nx/devkit/src/utils/calculate-hash-for-create-nodes';
 
 export interface MavenPluginOptions {
-  mavenExecutable?: string;
   verbose?: boolean;
 }
 
-const DEFAULT_OPTIONS: MavenPluginOptions = {
-  mavenExecutable: 'mvn',
-};
+const DEFAULT_OPTIONS: MavenPluginOptions = {};
 
 // Global cache to avoid running Maven analysis multiple times
 let globalAnalysisCache: any = null;
@@ -185,9 +182,12 @@ async function runMavenAnalysis(options: MavenPluginOptions): Promise<any> {
     throw new Error('Maven analyzer not found. Please ensure maven-plugin is compiled.');
   }
 
+  // Detect Maven wrapper or fallback to 'mvn'
+  const mavenExecutable = detectMavenWrapper();
+
   if (isVerbose) {
     console.log(`Running Maven analysis with verbose logging enabled...`);
-    console.log(`Maven executable: ${options.mavenExecutable}`);
+    console.log(`Maven executable: ${mavenExecutable}`);
     console.log(`Output file: ${outputFile}`);
   }
 
@@ -203,7 +203,7 @@ async function runMavenAnalysis(options: MavenPluginOptions): Promise<any> {
   // These warnings are normal in large multi-module projects and don't affect functionality
 
   if (isVerbose) {
-    console.log(`Executing Maven command: ${options.mavenExecutable} ${mavenArgs.join(' ')}`);
+    console.log(`Executing Maven command: ${mavenExecutable} ${mavenArgs.join(' ')}`);
     console.log(`Working directory: ${workspaceRoot}`);
   } else {
     mavenArgs.push('-q');
@@ -211,7 +211,7 @@ async function runMavenAnalysis(options: MavenPluginOptions): Promise<any> {
 
   // Run Maven plugin
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(options.mavenExecutable, mavenArgs, {
+    const child = spawn(mavenExecutable, mavenArgs, {
       cwd: workspaceRoot,
       stdio: 'inherit'
     });
@@ -243,6 +243,22 @@ async function runMavenAnalysis(options: MavenPluginOptions): Promise<any> {
 
   const jsonContent = readFileSync(outputFile, 'utf8');
   return JSON.parse(jsonContent);
+}
+
+/**
+ * Detect Maven wrapper in workspace root, fallback to 'mvn'
+ */
+function detectMavenWrapper(): string {
+  const isWindows = process.platform === 'win32';
+  const wrapperFile = isWindows ? 'mvnw.cmd' : 'mvnw';
+  const wrapperPath = join(workspaceRoot, wrapperFile);
+  
+  if (existsSync(wrapperPath)) {
+    return wrapperPath;
+  }
+  
+  // Fallback to 'mvn' if no wrapper found
+  return 'mvn';
 }
 
 /**

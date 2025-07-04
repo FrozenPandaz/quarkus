@@ -15,7 +15,6 @@ describe('Maven Plugin', () => {
     };
 
     const options: MavenPluginOptions = {
-      mavenExecutable: 'mvn',
       verbose: false
     };
 
@@ -92,7 +91,7 @@ describe('Maven Plugin', () => {
   });
 
   describe('createDependencies', () => {
-    it('should handle graceful failure with invalid Maven executable', async () => {
+    it('should handle graceful failure when Maven wrapper is not available', async () => {
       const context: CreateDependenciesContext = {
         nxJsonConfiguration: {},
         workspaceRoot,
@@ -103,7 +102,7 @@ describe('Maven Plugin', () => {
       };
 
       const options: MavenPluginOptions = {
-        mavenExecutable: 'non-existent-command'
+        verbose: false
       };
 
       const result = await createDependencies(options, context);
