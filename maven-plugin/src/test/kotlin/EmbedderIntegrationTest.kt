@@ -7,6 +7,9 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 
+// Import model classes and utilities
+import model.*
+
 /**
  * Integration tests for Maven Embedder implementation
  * Tests end-to-end functionality with real Maven projects

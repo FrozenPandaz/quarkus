@@ -208,7 +208,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "clean": {
@@ -313,7 +315,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "formatter:format@default": {
@@ -347,7 +351,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "generate-resources": {
@@ -453,7 +459,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "initialize": {
@@ -552,7 +560,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "maven-clean:clean@default-clean": {
@@ -590,7 +600,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "maven-compiler:compile": {
@@ -664,7 +676,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "maven-compiler:testCompile": {
@@ -744,7 +758,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "maven-deploy:deploy@default-deploy": {
@@ -793,7 +809,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "maven-enforcer:enforce@enforce": {
@@ -824,7 +842,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "maven-install:install@default-install": {
@@ -872,7 +892,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "maven-jar:jar@default-jar": {
@@ -918,7 +940,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "maven-resources:resources@default-resources": {
@@ -953,7 +977,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "maven-resources:testResources@default-testResources": {
@@ -991,7 +1017,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "maven-site:deploy@default-deploy": {
@@ -1040,7 +1068,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "maven-site:site@default-site": {
@@ -1078,7 +1108,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "maven-source:jar-no-fork@attach-sources": {
@@ -1128,7 +1160,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "maven-surefire:test": {
@@ -1210,7 +1244,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "package": {
@@ -1581,7 +1617,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "projectRoot": "core/runtime",
           "verbose": true,
         },
-        "outputs": [],
+        "outputs": [
+          "{workspaceRoot}/.nx-maven-sessions/quarkus-core.json",
+        ],
         "parallelism": true,
       },
       "site": {
