@@ -105,6 +105,19 @@ object NxMavenBatchExecutor {
             System.out.println("Starting Maven batch execution...")
         }
         
+        // Read previous goal results for smart execution decisions
+        val previousGoalResults = readGoalResults(workspaceDir, projects)
+        
+        if (verbose && previousGoalResults.isNotEmpty()) {
+            System.out.println("Found previous goal results for ${previousGoalResults.size} projects")
+            previousGoalResults.forEach { (project, results) ->
+                val buildSuccess = results["buildSuccess"] as? Boolean ?: false
+                val previousGoals = results["requestedGoals"] as? List<*>
+                val executionDate = results["executionDate"] as? String
+                System.out.println("  $project: success=$buildSuccess, goals=$previousGoals, date=$executionDate")
+            }
+        }
+        
         try {
             // Capture output
             val outputLines = mutableListOf<String>()
@@ -204,6 +217,28 @@ object NxMavenBatchExecutor {
                 }
             }
 
+            // Check if execution can be skipped based on previous results
+            val canSkipExecution = projects.size == 1 && previousGoalResults.containsKey(projects[0])
+            if (canSkipExecution) {
+                val projectGoalResults = previousGoalResults[projects[0]]!!
+                if (shouldSkipGoals(projectGoalResults, goals)) {
+                    if (verbose) {
+                        System.out.println("Skipping execution - goals already completed successfully")
+                    }
+                    
+                    // Return successful result without executing
+                    val duration = System.currentTimeMillis() - startTime
+                    goalResult.apply {
+                        setSuccess(true)
+                        setDurationMs(duration)
+                        setOutput(listOf("Goals skipped - already executed successfully in previous session"))
+                        setErrors(emptyList())
+                        setExitCode(0)
+                    }
+                    return goalResult
+                }
+            }
+
             // Execute all goals across all projects in single Maven reactor session
             val result = invoker.execute(request)
             
@@ -251,6 +286,65 @@ object NxMavenBatchExecutor {
         } catch (e: Exception) {
             false
         }
+    }
+
+    /**
+     * Read goal results from session files for given projects
+     */
+    private fun readGoalResults(workspaceDir: File, projects: List<String>): Map<String, Map<String, Any?>> {
+        val sessionDir = File(workspaceDir, ".nx-maven-sessions")
+        val results = mutableMapOf<String, Map<String, Any?>>()
+        
+        if (!sessionDir.exists()) {
+            return results
+        }
+        
+        projects.forEach { project ->
+            try {
+                val sessionFileName = "${project.replace("/", "_")}.json"
+                val sessionFile = File(sessionDir, sessionFileName)
+                
+                if (sessionFile.exists()) {
+                    val sessionContent = sessionFile.readText()
+                    val sessionData = gson.fromJson(sessionContent, Map::class.java) as? Map<String, Any?>
+                    
+                    sessionData?.get("goalResults")?.let { goalResults ->
+                        if (goalResults is Map<*, *>) {
+                            @Suppress("UNCHECKED_CAST")
+                            results[project] = goalResults as Map<String, Any?>
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                System.err.println("Warning: Failed to read goal results for project $project: ${e.message}")
+            }
+        }
+        
+        return results
+    }
+
+    /**
+     * Check if goals should be skipped based on previous execution results
+     */
+    private fun shouldSkipGoals(goalResults: Map<String, Any?>, requestedGoals: List<String>): Boolean {
+        // Check if the same goals were already executed successfully
+        val previousGoals = goalResults["requestedGoals"] as? List<*>
+        val buildSuccess = goalResults["buildSuccess"] as? Boolean ?: false
+        
+        if (!buildSuccess) {
+            // Don't skip if previous execution failed
+            return false
+        }
+        
+        if (previousGoals != null) {
+            val previousGoalsSet = previousGoals.map { it.toString() }.toSet()
+            val requestedGoalsSet = requestedGoals.toSet()
+            
+            // Skip if requested goals are a subset of previously executed goals
+            return requestedGoalsSet.all { it in previousGoalsSet }
+        }
+        
+        return false
     }
 
     /**
