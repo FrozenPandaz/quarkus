@@ -227,6 +227,7 @@ export async function batchMavenExecutor(
     const allGoals: string[] = [];
     const allProjects: string[] = [];
     const taskIds: string[] = [];
+    const taskGoalMapping = new Map<string, string[]>();
     let verbose = false;
     let commonOptions: MavenBatchExecutorOptions | undefined;
 
@@ -237,6 +238,7 @@ export async function batchMavenExecutor(
       if (task) {
         // Get goals from the task's configuration options
         const taskGoals = options.goals || [];
+        taskGoalMapping.set(taskId, taskGoals);
         allGoals.push(...taskGoals);
 
         // Get project root (use from options or task target project)
@@ -264,11 +266,14 @@ export async function batchMavenExecutor(
     const batchOptions = { ...commonOptions!, verbose };
     const batchResult = await executeMultiProjectMavenBatch(uniqueGoals, uniqueProjects, batchOptions, process.cwd());
 
-    // All tasks get the same result (success/failure of the entire batch)
+    // Generate per-task results based on task-specific goal success
     for (const taskId of taskIds) {
+      const taskSuccess = isTaskSuccessful(taskId, taskGoalMapping, batchResult);
+      const taskOutput = getTaskSpecificOutput(taskId, taskGoalMapping, batchResult);
+      
       results[taskId] = {
-        success: batchResult.overallSuccess,
-        terminalOutput: batchResult.goalResults.map(r => r.output.join('\n')).join('\n')
+        success: taskSuccess,
+        terminalOutput: taskOutput
       };
     }
 
@@ -375,6 +380,52 @@ async function executeMultiProjectMavenBatch(
   }
 
   return result;
+}
+
+// Check if a task's goals were successful based on batch results
+function isTaskSuccessful(taskId: string, taskGoalMapping: Map<string, string[]>, batchResult: MavenBatchResult): boolean {
+  const taskGoals = taskGoalMapping.get(taskId) || [];
+  
+  // A task is successful if ALL its goals succeeded
+  return taskGoals.every(requestedGoal => {
+    // Find if any executed goal matches this requested goal
+    return batchResult.goalResults.some(result => 
+      result.success && (
+        result.goal === requestedGoal ||                    // Exact match
+        result.goal.includes(requestedGoal) ||              // Goal contains requested
+        result.goal.endsWith(`:${requestedGoal}`)           // Plugin:goal format
+      )
+    );
+  });
+}
+
+// Get task-specific output from batch results
+function getTaskSpecificOutput(taskId: string, taskGoalMapping: Map<string, string[]>, batchResult: MavenBatchResult): string {
+  const taskGoals = taskGoalMapping.get(taskId) || [];
+  const relevantResults: string[] = [];
+  
+  // Find output from goals that match this task
+  for (const requestedGoal of taskGoals) {
+    const matchingResults = batchResult.goalResults.filter(result => 
+      result.goal === requestedGoal ||
+      result.goal.includes(requestedGoal) ||
+      result.goal.endsWith(`:${requestedGoal}`)
+    );
+    
+    matchingResults.forEach(result => {
+      relevantResults.push(...result.output);
+      if (!result.success && result.errors.length > 0) {
+        relevantResults.push(...result.errors);
+      }
+    });
+  }
+  
+  // If no specific output found, return all batch output
+  if (relevantResults.length === 0) {
+    return batchResult.goalResults.map(r => r.output.join('\n')).join('\n');
+  }
+  
+  return relevantResults.join('\n');
 }
 
 // Execute Maven command with streaming output using PseudoTerminal
