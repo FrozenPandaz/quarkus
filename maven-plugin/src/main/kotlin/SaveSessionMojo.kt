@@ -217,8 +217,8 @@ class SaveSessionMojo : AbstractMojo() {
             results["lifecyclePhases"] = lifecyclePhases
             
             // Capture execution success indicators
-            results["buildSuccess"] = !session.hasExceptions()
-            if (session.hasExceptions()) {
+            results["buildSuccess"] = !session.result.hasExceptions()
+            if (session.result.hasExceptions()) {
                 val exceptions = session.result?.exceptions?.map { 
                     mapOf(
                         "message" to (it.message ?: "Unknown error"),
