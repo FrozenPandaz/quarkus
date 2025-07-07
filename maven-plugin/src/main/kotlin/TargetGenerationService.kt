@@ -234,6 +234,13 @@ class TargetGenerationService(
         target.inputs = inputs
 
         val outputs = executionPlanAnalysisService.getGoalOutputs(goal, projectRootToken, project).toMutableList()
+        
+        // Add session file as output for Maven session persistence
+        val sessionFilePath = getSessionFilePath(project)
+        if (!outputs.contains(sessionFilePath)) {
+            outputs.add(sessionFilePath)
+        }
+        
         target.outputs = outputs
 
         // Use pre-calculated dependencies
@@ -417,6 +424,14 @@ class TargetGenerationService(
     // dynamic Maven API-based analysis that uses actual plugin configuration,
     // lifecycle phases, and MojoExecution information.
     
+    /**
+     * Generate workspace-relative session file path for Nx outputs
+     */
+    private fun getSessionFilePath(project: MavenProject): String {
+        val sessionFileName = "${project.artifactId.replace("/", "_")}.json"
+        return "{workspaceRoot}/.nx-maven-sessions/$sessionFileName"
+    }
+
     /**
      * Convert an absolute or relative path from Maven configuration to a relative path
      * from the project base directory.

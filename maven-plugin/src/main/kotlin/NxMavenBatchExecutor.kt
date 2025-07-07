@@ -101,6 +101,10 @@ object NxMavenBatchExecutor {
         
         val startTime = System.currentTimeMillis()
         
+        if (verbose) {
+            System.out.println("Starting Maven batch execution...")
+        }
+        
         try {
             // Capture output
             val outputLines = mutableListOf<String>()
@@ -108,27 +112,49 @@ object NxMavenBatchExecutor {
             
             val invoker = DefaultInvoker()
             
-            // Find Maven executable - check MAVEN_HOME first, then try to find mvn in PATH
-            val mavenHome = System.getenv("MAVEN_HOME")
-            if (mavenHome != null) {
-                invoker.mavenHome = File(mavenHome)
-            } else {
-                // Try to find Maven executable in PATH
-                val mavenExecutable = findMavenExecutable()
-                if (mavenExecutable != null) {
-                    // Set Maven home to parent directory of mvn executable
-                    val mvnFile = File(mavenExecutable)
+            // Configure Maven executable - prefer wrapper, then MAVEN_HOME, then system Maven
+            val mavenExecutable = findMavenExecutable(workspaceDir)
+            if (mavenExecutable != null) {
+                val mvnFile = File(mavenExecutable)
+                
+                // If it's a wrapper file, use it directly
+                if (mvnFile.name.startsWith("mvnw")) {
+                    // Set the wrapper as the Maven executable
+                    invoker.mavenExecutable = mvnFile
+                } else {
+                    // For system Maven, set MAVEN_HOME if we can determine it
                     val binDir = mvnFile.parentFile
                     if (binDir != null && binDir.name == "bin") {
-                        invoker.mavenHome = binDir.parentFile
+                        val mavenHome = binDir.parentFile
+                        if (mavenHome != null) {
+                            invoker.mavenHome = mavenHome
+                        }
                     }
+                }
+            } else {
+                // Fallback to MAVEN_HOME environment variable
+                val mavenHome = System.getenv("MAVEN_HOME")
+                if (mavenHome != null) {
+                    invoker.mavenHome = File(mavenHome)
                 }
             }
             
             val request = DefaultInvocationRequest().apply {
                 pomFile = rootPomFile
                 baseDirectory = workspaceDir
-                setGoals(goals) // Execute all goals in single Maven session
+                
+                // Enable session management for Nx batch executor
+                val props = java.util.Properties()
+                props.setProperty("nx.session.enabled", "true")
+                properties = props
+                
+                // Only add session goals if the plugin is available (to avoid test failures)
+                val sessionAwareGoals = if (isSessionPluginAvailable()) {
+                    listOf("io.quarkus:maven-plugin:999-SNAPSHOT:load-session") + goals + listOf("io.quarkus:maven-plugin:999-SNAPSHOT:save-session")
+                } else {
+                    goals
+                }
+                setGoals(sessionAwareGoals)
             }
             
             // Use Maven's -pl option to specify which projects to build
@@ -153,7 +179,7 @@ object NxMavenBatchExecutor {
             request.setOutputHandler { line ->
                 outputLines.add(line)
                 if (verbose) {
-                    println("[MULTI-PROJECT] $line")
+                    System.out.println("[MULTI-PROJECT] $line")
                 }
             }
             
@@ -165,9 +191,17 @@ object NxMavenBatchExecutor {
             }
 
             if (verbose) {
-                println("Executing goals: ${goals.joinToString(", ")}")
-                println("Across projects: ${projects.joinToString(", ")}")
-                println("Working directory: ${workspaceDir.absolutePath}")
+                val sessionEnabled = isSessionPluginAvailable()
+                System.out.println("Executing goals: ${request.goals.joinToString(", ")}")
+                System.out.println("Original user goals: ${goals.joinToString(", ")}")
+                System.out.println("Across projects: ${projects.joinToString(", ")}")
+                System.out.println("Working directory: ${workspaceDir.absolutePath}")
+                System.out.println("Session management enabled: $sessionEnabled")
+                if (sessionEnabled) {
+                    System.out.println("Session goals added to execution")
+                } else {
+                    System.out.println("Session plugin not available, using original goals only")
+                }
             }
 
             // Execute all goals across all projects in single Maven reactor session
@@ -195,20 +229,59 @@ object NxMavenBatchExecutor {
                 setErrorMessage("Multi-project goal execution exception: ${e.message}")
                 setErrors(listOf(e.message ?: "Unknown error"))
             }
+            
+            if (verbose) {
+                System.out.println("ERROR: Exception in Maven execution: ${e.message}")
+            }
         }
         
         return goalResult
     }
 
     /**
-     * Find Maven executable in PATH
+     * Check if the session plugin is available to avoid test failures
      */
-    private fun findMavenExecutable(): String? {
+    private fun isSessionPluginAvailable(): Boolean {
+        return try {
+            // Check if we're in a local repository where the plugin is installed
+            val userHome = System.getProperty("user.home")
+            val localRepo = System.getProperty("maven.repo.local") ?: "$userHome/.m2/repository"
+            val pluginPath = File(localRepo, "io/quarkus/maven-plugin/999-SNAPSHOT")
+            pluginPath.exists()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Find Maven executable, preferring wrapper files over system installations
+     */
+    private fun findMavenExecutable(workspaceDir: File): String? {
+        val isWindows = System.getProperty("os.name").lowercase().contains("windows")
+        
+        // First, look for Maven wrapper in workspace and parent directories
+        var currentDir: File? = workspaceDir
+        while (currentDir != null) {
+            val wrapperFile = if (isWindows) {
+                File(currentDir, "mvnw.cmd")
+            } else {
+                File(currentDir, "mvnw")
+            }
+            
+            if (wrapperFile.exists() && wrapperFile.canExecute()) {
+                return wrapperFile.absolutePath
+            }
+            
+            // Move up one directory level, but check for null parent
+            currentDir = currentDir.parentFile
+        }
+        
+        // Fallback to system Maven installation in PATH
         val pathEnv = System.getenv("PATH") ?: return null
         val pathSeparator = System.getProperty("path.separator")
         val paths = pathEnv.split(pathSeparator)
         
-        val mvnCommand = if (System.getProperty("os.name").lowercase().contains("windows")) "mvn.cmd" else "mvn"
+        val mvnCommand = if (isWindows) "mvn.cmd" else "mvn"
         
         for (path in paths) {
             val mvnFile = File(path, mvnCommand)

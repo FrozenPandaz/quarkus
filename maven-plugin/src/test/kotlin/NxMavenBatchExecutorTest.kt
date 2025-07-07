@@ -164,8 +164,10 @@ class NxMavenBatchExecutorTest {
             assertNotNull(result, "Result should not be null")
             
             val output = outputStream.toString()
-            // Verbose mode should produce output
-            assertFalse(output.trim().isEmpty(), "Verbose mode should produce output")
+            
+            // Verbose mode should produce output (check that we got some output)
+            assertTrue(output.length > 0, "Verbose mode should produce output")
+            assertTrue(output.contains("Starting Maven batch execution"), "Should contain expected verbose output")
             
         } finally {
             System.setOut(originalOut)
