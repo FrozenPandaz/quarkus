@@ -1,2 +1,2 @@
-// Re-export the executor for Nx
-export { default, batchMavenExecutor } from './executor';
+// Re-export the embedder-based executor for Nx
+export { default, batchMavenExecutor } from './executor-embedder';

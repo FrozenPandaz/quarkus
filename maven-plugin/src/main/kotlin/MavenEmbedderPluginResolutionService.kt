@@ -28,7 +28,7 @@ class MavenEmbedderPluginResolutionService(
     
     private val pluginManager: PluginManager by lazy {
         try {
-            plexusContainer.lookup(PluginManager::class.java)
+            plexusContainer.lookup("org.apache.maven.plugin.PluginManager") as PluginManager
         } catch (e: ComponentLookupException) {
             throw RuntimeException("Failed to lookup PluginManager", e)
         }
@@ -36,7 +36,7 @@ class MavenEmbedderPluginResolutionService(
     
     private val pluginVersionResolver: PluginVersionResolver? by lazy {
         try {
-            plexusContainer.lookup(PluginVersionResolver::class.java)
+            plexusContainer.lookup("org.apache.maven.plugin.version.PluginVersionResolver") as PluginVersionResolver
         } catch (e: ComponentLookupException) {
             if (verbose) {
                 println("Warning: Failed to lookup PluginVersionResolver in test environment: ${e.message}")

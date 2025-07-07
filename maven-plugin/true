@@ -1,0 +1,249 @@
+{
+  "task-0-maven-plugin": {
+    "taskId": "task-0-maven-plugin",
+    "success": false,
+    "duration": 21,
+    "goalResults": [
+      {
+        "goal": "org.jetbrains.kotlin:kotlin-maven-plugin:compile@compile",
+        "success": false,
+        "duration": 0,
+        "output": [
+          "Creating new Maven session for: maven-plugin",
+          "Created Maven session successfully",
+          "  Project: maven-plugin",
+          "  Projects in reactor: 1",
+          "  Goals: org.jetbrains.kotlin:kotlin-maven-plugin:compile@compile, org.apache.maven.plugins:maven-resources-plugin:resources@default-resources, org.apache.maven.plugins:maven-compiler-plugin:compile@default-compile, org.apache.maven.plugins:maven-compiler-plugin:compile@compile, org.apache.maven.plugins:maven-plugin-plugin:descriptor@default-descriptor, org.jetbrains.kotlin:kotlin-maven-plugin:test-compile@test-compile, org.apache.maven.plugins:maven-resources-plugin:testResources@default-testResources, org.apache.maven.plugins:maven-compiler-plugin:testCompile@default-testCompile, org.apache.maven.plugins:maven-compiler-plugin:testCompile@test-compile, org.apache.maven.plugins:maven-surefire-plugin:test@default-test, org.apache.maven.plugins:maven-plugin-plugin:addPluginArtifactMetadata@default-addPluginArtifactMetadata, org.apache.maven.plugins:maven-dependency-plugin:copy-dependencies@copy-dependencies, org.apache.maven.plugins:maven-jar-plugin:jar@default-jar, org.apache.maven.plugins:maven-install-plugin:install@default-install",
+          "        🔄 [PARALLEL] Executing goals with 23 threads",
+          "        ❌ [PARALLEL] Some goals failed in 2ms"
+        ],
+        "errors": [],
+        "exitCode": 1
+      },
+      {
+        "goal": "org.apache.maven.plugins:maven-resources-plugin:resources@default-resources",
+        "success": false,
+        "duration": 0,
+        "output": [],
+        "errors": [],
+        "exitCode": 1
+      },
+      {
+        "goal": "org.apache.maven.plugins:maven-compiler-plugin:compile@default-compile",
+        "success": false,
+        "duration": 0,
+        "output": [],
+        "errors": [],
+        "exitCode": 1
+      },
+      {
+        "goal": "org.apache.maven.plugins:maven-compiler-plugin:compile@compile",
+        "success": false,
+        "duration": 0,
+        "output": [],
+        "errors": [],
+        "exitCode": 1
+      },
+      {
+        "goal": "org.apache.maven.plugins:maven-plugin-plugin:descriptor@default-descriptor",
+        "success": false,
+        "duration": 0,
+        "output": [],
+        "errors": [],
+        "exitCode": 1
+      },
+      {
+        "goal": "org.jetbrains.kotlin:kotlin-maven-plugin:test-compile@test-compile",
+        "success": false,
+        "duration": 0,
+        "output": [],
+        "errors": [],
+        "exitCode": 1
+      },
+      {
+        "goal": "org.apache.maven.plugins:maven-resources-plugin:testResources@default-testResources",
+        "success": false,
+        "duration": 0,
+        "output": [],
+        "errors": [],
+        "exitCode": 1
+      },
+      {
+        "goal": "org.apache.maven.plugins:maven-compiler-plugin:testCompile@default-testCompile",
+        "success": false,
+        "duration": 0,
+        "output": [],
+        "errors": [],
+        "exitCode": 1
+      },
+      {
+        "goal": "org.apache.maven.plugins:maven-compiler-plugin:testCompile@test-compile",
+        "success": false,
+        "duration": 0,
+        "output": [],
+        "errors": [],
+        "exitCode": 1
+      },
+      {
+        "goal": "org.apache.maven.plugins:maven-surefire-plugin:test@default-test",
+        "success": false,
+        "duration": 0,
+        "output": [],
+        "errors": [],
+        "exitCode": 1
+      },
+      {
+        "goal": "org.apache.maven.plugins:maven-plugin-plugin:addPluginArtifactMetadata@default-addPluginArtifactMetadata",
+        "success": false,
+        "duration": 0,
+        "output": [],
+        "errors": [],
+        "exitCode": 1
+      },
+      {
+        "goal": "org.apache.maven.plugins:maven-dependency-plugin:copy-dependencies@copy-dependencies",
+        "success": false,
+        "duration": 0,
+        "output": [],
+        "errors": [],
+        "exitCode": 1
+      },
+      {
+        "goal": "org.apache.maven.plugins:maven-jar-plugin:jar@default-jar",
+        "success": false,
+        "duration": 0,
+        "output": [],
+        "errors": [],
+        "exitCode": 1
+      },
+      {
+        "goal": "org.apache.maven.plugins:maven-install-plugin:install@default-install",
+        "success": false,
+        "duration": 0,
+        "output": [],
+        "errors": [],
+        "exitCode": 1
+      }
+    ],
+    "artifacts": [],
+    "dependencies": [
+      {
+        "groupId": "org.apache.maven",
+        "artifactId": "maven-plugin-api",
+        "version": "3.9.10",
+        "type": "jar",
+        "scope": "provided",
+        "optional": false
+      },
+      {
+        "groupId": "org.apache.maven.plugin-tools",
+        "artifactId": "maven-plugin-annotations",
+        "version": "3.9.0",
+        "type": "jar",
+        "scope": "provided",
+        "optional": false
+      },
+      {
+        "groupId": "org.apache.maven",
+        "artifactId": "maven-core",
+        "version": "3.9.10",
+        "type": "jar",
+        "scope": "compile",
+        "optional": false
+      },
+      {
+        "groupId": "org.apache.maven",
+        "artifactId": "maven-model",
+        "version": "3.9.10",
+        "type": "jar",
+        "scope": "provided",
+        "optional": false
+      },
+      {
+        "groupId": "com.google.code.gson",
+        "artifactId": "gson",
+        "version": "2.13.1",
+        "type": "jar",
+        "scope": "compile",
+        "optional": false
+      },
+      {
+        "groupId": "org.apache.maven.shared",
+        "artifactId": "maven-invoker",
+        "version": "3.3.0",
+        "type": "jar",
+        "scope": "compile",
+        "optional": false
+      },
+      {
+        "groupId": "org.apache.maven.plugin-testing",
+        "artifactId": "maven-plugin-testing-harness",
+        "version": "3.3.0",
+        "type": "jar",
+        "scope": "test",
+        "optional": false
+      },
+      {
+        "groupId": "org.apache.maven",
+        "artifactId": "maven-compat",
+        "version": "3.9.10",
+        "type": "jar",
+        "scope": "test",
+        "optional": false
+      },
+      {
+        "groupId": "junit",
+        "artifactId": "junit",
+        "version": "4.13.2",
+        "type": "jar",
+        "scope": "test",
+        "optional": false
+      },
+      {
+        "groupId": "org.jetbrains.kotlin",
+        "artifactId": "kotlin-stdlib",
+        "version": "1.9.20",
+        "type": "jar",
+        "scope": "compile",
+        "optional": false
+      },
+      {
+        "groupId": "org.jetbrains.kotlin",
+        "artifactId": "kotlin-test-junit",
+        "version": "1.9.20",
+        "type": "jar",
+        "scope": "test",
+        "optional": false
+      },
+      {
+        "groupId": "org.apache.maven",
+        "artifactId": "maven-embedder",
+        "version": "3.9.10",
+        "type": "jar",
+        "scope": "compile",
+        "optional": false
+      },
+      {
+        "groupId": "org.slf4j",
+        "artifactId": "slf4j-simple",
+        "version": "2.0.16",
+        "type": "jar",
+        "scope": "compile",
+        "optional": false
+      },
+      {
+        "groupId": "org.codehaus.plexus",
+        "artifactId": "plexus-container-default",
+        "version": "2.1.1",
+        "type": "jar",
+        "scope": "compile",
+        "optional": false
+      }
+    ],
+    "executionContext": {
+      "projectPath": "maven-plugin",
+      "projectArtifactId": "maven-plugin",
+      "goalCount": 14
+    }
+  }
+}

@@ -1,7 +1,8 @@
 import { ExecutorContext, logger, TaskGraph } from '@nx/devkit';
 import { execSync } from 'child_process';
 import { join } from 'path';
-import { existsSync, writeFileSync } from 'fs';
+import { existsSync, writeFileSync, readFileSync, unlinkSync, mkdirSync } from 'fs';
+import { tmpdir } from 'os';
 import { createPseudoTerminal } from 'nx/src/tasks-runner/pseudo-terminal';
 
 export interface MavenBatchExecutorOptions {
@@ -80,7 +81,7 @@ export default async function runExecutor(
   const {
     goals,
     projectRoot = '.',
-    verbose = false,
+    verbose = true,
     mavenPluginPath = 'maven-plugin',
     outputFile,
     failOnError = true
@@ -115,7 +116,7 @@ async function runEmbedderExecutor(
   const {
     goals,
     projectRoot = '.',
-    verbose = false,
+    verbose = true,
     mavenPluginPath = 'maven-plugin',
     outputFile,
     failOnError = true
@@ -160,59 +161,82 @@ async function runEmbedderExecutor(
     const goalsString = goals.join(',');
     const verboseFlag = verbose ? 'true' : 'false';
 
-    // Build command for embedder: goals, workspaceRoot, projects, verbose
+    // Create output file for results - use outputFile option or default to workspace tmp directory
+    const outputFileName = `maven-embedder-results-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.json`;
+    const defaultOutputDir = join(context.workspaceRoot, 'tmp');
+    const resultsFile = outputFile || join(defaultOutputDir, outputFileName);
+    
+    // Ensure the output directory exists if we're creating the file
+    if (!outputFile && !existsSync(defaultOutputDir)) {
+      mkdirSync(defaultOutputDir, { recursive: true });
+    }
+
+    // Build command for embedder: goals, workspaceRoot, projects, outputFile, verbose
     const classpath = `${embedderExecutorClasspath}:${dependencyPath}/*`;
-    const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenEmbedderBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectRoot}" ${verboseFlag}`;
+    const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenEmbedderBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectRoot}" "${resultsFile}" ${verboseFlag}`;
+
+    // Always log the Java command being executed
+    logger.info(`Maven Embedder Java Command:`);
+    logger.info(`  Goals: ${goals.join(', ')}`);
+    logger.info(`  Project: ${projectRoot}`);
+    logger.info(`  Working directory: ${pluginDir}`);
+    logger.info(`  Output file: ${resultsFile}`);
+    logger.info(`  Java executable: java`);
+    logger.info(`  System property: -Dmaven.multiModuleProjectDirectory="${workspaceRoot}"`);
+    logger.info(`  Classpath: ${classpath}`);
+    logger.info(`  Main class: NxMavenEmbedderBatchExecutor`);
+    logger.info(`  Arguments: "${goalsString}" "${workspaceRoot}" "${projectRoot}" "${resultsFile}" ${verboseFlag}`);
+    logger.info(`  Full command: ${command}`);
 
     if (verbose) {
-      logger.info(`Executing Maven Embedder batch command:`);
-      logger.info(`  Goals: ${goals.join(', ')}`);
-      logger.info(`  Project: ${projectRoot}`);
-      logger.info(`  Working directory: ${pluginDir}`);
-      logger.info(`  Command: ${command}`);
+      logger.info(`Additional verbose logging enabled for Maven Embedder execution`);
     }
 
     // Execute the embedder command with streaming
     const startTime = Date.now();
-    const output = await executeWithStreaming(command, pluginDir, verbose);
-    const duration = Date.now() - startTime;
-
-    // Parse JSON output from embedder executor
+    let output: string;
     let result: Record<string, TaskExecutionResult>;
+    
     try {
-      // Find the JSON output (starts with '{' and ends with '}')
-      const lines = output.trim().split('\n');
-      let jsonStart = -1;
-      let jsonEnd = -1;
+      output = await executeWithStreaming(command, pluginDir, verbose);
+      const duration = Date.now() - startTime;
 
-      // Find the start of JSON
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].trim().startsWith('{')) {
-          jsonStart = i;
-          break;
+      // Read JSON result from output file
+      if (!existsSync(resultsFile)) {
+        throw new Error(`Output file not created: ${resultsFile}`);
+      }
+
+      const jsonContent = readFileSync(resultsFile, 'utf-8');
+      result = JSON.parse(jsonContent);
+
+      // Clean up the temporary output file (only if we created it, not if it was provided via options)
+      if (!outputFile) {
+        try {
+          unlinkSync(resultsFile);
+        } catch (cleanupError) {
+          logger.warn(`Failed to clean up output file ${resultsFile}: ${cleanupError}`);
         }
       }
 
-      // Find the end of JSON (last '}')
-      for (let i = lines.length - 1; i >= 0; i--) {
-        if (lines[i].trim().endsWith('}')) {
-          jsonEnd = i;
-          break;
-        }
-      }
-
-      if (jsonStart === -1 || jsonEnd === -1) {
-        throw new Error('No JSON output found');
-      }
-
-      const jsonOutput = lines.slice(jsonStart, jsonEnd + 1).join('\n');
-      result = JSON.parse(jsonOutput);
     } catch (parseError: any) {
-      const error = `Failed to parse embedder executor output: ${parseError?.message || parseError}`;
+      const error = `Failed to read or parse embedder results from ${resultsFile}: ${parseError?.message || parseError}`;
       logger.error(error);
-      logger.debug(`Raw output: ${output}`);
+      
+      // Try to clean up the output file even on error (only if we created it)
+      if (!outputFile) {
+        try {
+          if (existsSync(resultsFile)) {
+            unlinkSync(resultsFile);
+          }
+        } catch (cleanupError) {
+          logger.warn(`Failed to clean up output file after error: ${cleanupError}`);
+        }
+      }
+      
       return { success: false, terminalOutput: error, error };
     }
+
+    const duration = Date.now() - startTime;
 
     // Extract the first (and likely only) task result for single task execution
     const taskResults = Object.values(result);
@@ -339,7 +363,7 @@ async function batchEmbedderExecutor(
     const allProjects: string[] = [];
     const taskIds: string[] = [];
     const taskGoalMapping = new Map<string, string[]>();
-    let verbose = false;
+    let verbose = true;
     let commonOptions: MavenBatchExecutorOptions | undefined;
 
     // Extract goals and project roots from each task in the task graph
@@ -411,7 +435,7 @@ async function executeMultiProjectEmbedderBatch(
   workspaceRoot: string
 ): Promise<Record<string, TaskExecutionResult>> {
   const {
-    verbose = false,
+    verbose = true,
     mavenPluginPath = 'maven-plugin'
   } = options;
 
@@ -439,41 +463,54 @@ async function executeMultiProjectEmbedderBatch(
   const projectsString = projects.join(',');
   const verboseFlag = verbose ? 'true' : 'false';
 
-  // Build command for embedder: goals, workspaceRoot, projects, verbose
+  // Create output file for results - use outputFile option or default to workspace tmp directory
+  const { outputFile } = options;
+  const outputFileName = `maven-embedder-results-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.json`;
+  const defaultOutputDir = join(workspaceRoot, 'tmp');
+  const resultsFile = outputFile || join(defaultOutputDir, outputFileName);
+  
+  // Ensure the output directory exists if we're creating the file
+  if (!outputFile && !existsSync(defaultOutputDir)) {
+    mkdirSync(defaultOutputDir, { recursive: true });
+  }
+
+  // Build command for embedder: goals, workspaceRoot, projects, outputFile, verbose
   const classpath = `${embedderExecutorClasspath}:${dependencyPath}/*`;
-  const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenEmbedderBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectsString}" ${verboseFlag}`;
+  const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenEmbedderBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectsString}" "${resultsFile}" ${verboseFlag}`;
+
+  // Always log the Java command being executed for multi-project batch
+  logger.info(`Maven Embedder Multi-Project Batch Java Command:`);
+  logger.info(`  Goals: ${goals.join(', ')}`);
+  logger.info(`  Projects: ${projects.join(', ')}`);
+  logger.info(`  Working directory: ${pluginDir}`);
+  logger.info(`  Output file: ${resultsFile}`);
+  logger.info(`  Java executable: java`);
+  logger.info(`  System property: -Dmaven.multiModuleProjectDirectory="${workspaceRoot}"`);
+  logger.info(`  Classpath: ${classpath}`);
+  logger.info(`  Main class: NxMavenEmbedderBatchExecutor`);
+  logger.info(`  Arguments: "${goalsString}" "${workspaceRoot}" "${projectsString}" "${resultsFile}" ${verboseFlag}`);
+  logger.info(`  Full command: ${command}`);
 
   // Execute the embedder command with streaming
   const startTime = Date.now();
   const output = await executeWithStreaming(command, pluginDir, verbose);
 
-  // Parse JSON output from embedder executor
-  const lines = output.trim().split('\n');
-  let jsonStart = -1;
-  let jsonEnd = -1;
+  // Read JSON result from output file
+  if (!existsSync(resultsFile)) {
+    throw new Error(`Output file not created: ${resultsFile}`);
+  }
 
-  // Find the start of JSON
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim().startsWith('{')) {
-      jsonStart = i;
-      break;
+  const jsonContent = readFileSync(resultsFile, 'utf-8');
+  const result: Record<string, TaskExecutionResult> = JSON.parse(jsonContent);
+
+  // Clean up the temporary output file (only if we created it, not if it was provided via options)
+  if (!outputFile) {
+    try {
+      unlinkSync(resultsFile);
+    } catch (cleanupError) {
+      logger.warn(`Failed to clean up output file ${resultsFile}: ${cleanupError}`);
     }
   }
-
-  // Find the end of JSON (last '}')
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i].trim().endsWith('}')) {
-      jsonEnd = i;
-      break;
-    }
-  }
-
-  if (jsonStart === -1 || jsonEnd === -1) {
-    throw new Error('No JSON output found');
-  }
-
-  const jsonOutput = lines.slice(jsonStart, jsonEnd + 1).join('\n');
-  const result: Record<string, TaskExecutionResult> = JSON.parse(jsonOutput);
 
   if (verbose) {
     logger.info(`Multi-project Maven Embedder batch execution completed`);
@@ -558,8 +595,13 @@ async function executeWithStreaming(command: string, cwd: string, verbose: boole
   const pseudoTerminal = createPseudoTerminal(true);
   let terminalOutput = '';
 
+  // Always log command execution start
+  logger.info(`Starting Java command execution via PseudoTerminal`);
+  logger.info(`  Working directory: ${cwd}`);
+  logger.info(`  Command: ${command}`);
+  
   if (verbose) {
-    logger.info(`Executing with PseudoTerminal: ${command}`);
+    logger.info(`Verbose mode enabled - additional execution details will be logged`);
   }
 
   try {

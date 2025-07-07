@@ -18,10 +18,10 @@ import java.nio.file.Path
 
 // Import model classes and utilities
 import model.*
-import MavenUtils.formatProjectKeyWithVersion
-import MavenUtils.parseGoal
-import MavenUtils.isLifecyclePhase
-import MavenUtils.hasPackaging
+
+// Import Maven utilities and batch executor
+import MavenUtils
+import NxMavenEmbedderBatchExecutor
 import MavenUtils.isLeafProject
 import MavenUtils.isAggregatorProject
 import MavenUtils.validateProjectCoordinates
@@ -303,6 +303,42 @@ class NxMavenEmbedderBatchExecutorTest : AbstractMojoTestCase() {
         } catch (e: Exception) {
             assertNotNull("Exception should have a message", e.message)
             // Exception is expected for invalid workspace
+        }
+    }
+
+    @Test
+    fun testMavenContainerInitialization() {
+        // Test that Maven container initialization doesn't fail with null cast exception
+        val workspaceRoot = testProjectDir.toString()
+        val goals = listOf("validate") // Simple goal that should not fail on basic project
+        val projects = listOf(".")
+
+        try {
+            val results = NxMavenEmbedderBatchExecutor.executeBatch(goals, workspaceRoot, projects, true)
+            
+            // The key test is that we don't get a null cast exception during initialization
+            assertNotNull("Results should not be null - container should initialize properly", results)
+            
+            // Verify we got some kind of result (success or failure doesn't matter for this test)
+            assertFalse("Should have at least one result", results.isEmpty())
+            
+        } catch (e: RuntimeException) {
+            // Check that the exception is NOT the null cast issue we fixed
+            val message = e.message ?: ""
+            assertFalse(
+                "Should not get null cast exception: ${message}", 
+                message.contains("null cannot be cast to non-null type org.apache.maven.Maven")
+            )
+            assertFalse(
+                "Should not get Maven container null exception: ${message}",
+                message.contains("Maven container is null after initialization")
+            )
+            assertFalse(
+                "Should not get Maven CLI initialization failed: ${message}",
+                message.contains("Maven CLI initialization failed - maven field is null")
+            )
+            
+            // Other exceptions are OK for this test - we're only testing the initialization fix
         }
     }
 

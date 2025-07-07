@@ -44,7 +44,7 @@ export default async function runExecutor(
   const {
     goals,
     projectRoot = '.',
-    verbose = false,
+    verbose = true,
     mavenPluginPath = 'maven-plugin',
     outputFile,
     failOnError = true
@@ -97,14 +97,22 @@ export default async function runExecutor(
 
     // Build command with new signature: goals, workspaceRoot, projects, verbose
     const classpath = `${batchExecutorClasspath}:${dependencyPath}/*`;
-    const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectRoot}" ${verboseFlag}`;
+    const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenEmbedderBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectRoot}" ${verboseFlag}`;
+
+    // Always log the Java command being executed
+    logger.info(`Maven Batch Java Command:`);
+    logger.info(`  Goals: ${goals.join(', ')}`);
+    logger.info(`  Project: ${projectRoot}`);
+    logger.info(`  Working directory: ${pluginDir}`);
+    logger.info(`  Java executable: java`);
+    logger.info(`  System property: -Dmaven.multiModuleProjectDirectory="${workspaceRoot}"`);
+    logger.info(`  Classpath: ${classpath}`);
+    logger.info(`  Main class: NxMavenEmbedderBatchExecutor`);
+    logger.info(`  Arguments: "${goalsString}" "${workspaceRoot}" "${projectRoot}" ${verboseFlag}`);
+    logger.info(`  Full command: ${command}`);
 
     if (verbose) {
-      logger.info(`Executing Maven batch command:`);
-      logger.info(`  Goals: ${goals.join(', ')}`);
-      logger.info(`  Project: ${projectRoot}`);
-      logger.info(`  Working directory: ${pluginDir}`);
-      logger.info(`  Command: ${command}`);
+      logger.info(`Additional verbose logging enabled for Maven batch execution`);
     }
 
     // Execute the batch command with streaming
@@ -228,7 +236,7 @@ export async function batchMavenExecutor(
     const allProjects: string[] = [];
     const taskIds: string[] = [];
     const taskGoalMapping = new Map<string, string[]>();
-    let verbose = false;
+    let verbose = true;
     let commonOptions: MavenBatchExecutorOptions | undefined;
 
     // Extract goals and project roots from each task in the task graph
@@ -300,7 +308,7 @@ async function executeMultiProjectMavenBatch(
   workspaceRoot: string
 ): Promise<MavenBatchResult> {
   const {
-    verbose = false,
+    verbose = true,
     mavenPluginPath = 'maven-plugin'
   } = options;
 
@@ -330,7 +338,19 @@ async function executeMultiProjectMavenBatch(
 
   // Build command with new signature: goals, workspaceRoot, projects, verbose
   const classpath = `${batchExecutorClasspath}:${dependencyPath}/*`;
-  const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectsString}" ${verboseFlag}`;
+  const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenEmbedderBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectsString}" ${verboseFlag}`;
+
+  // Always log the Java command being executed for multi-project batch
+  logger.info(`Maven Multi-Project Batch Java Command:`);
+  logger.info(`  Goals: ${goals.join(', ')}`);
+  logger.info(`  Projects: ${projects.join(', ')}`);
+  logger.info(`  Working directory: ${pluginDir}`);
+  logger.info(`  Java executable: java`);
+  logger.info(`  System property: -Dmaven.multiModuleProjectDirectory="${workspaceRoot}"`);
+  logger.info(`  Classpath: ${classpath}`);
+  logger.info(`  Main class: NxMavenEmbedderBatchExecutor`);
+  logger.info(`  Arguments: "${goalsString}" "${workspaceRoot}" "${projectsString}" ${verboseFlag}`);
+  logger.info(`  Full command: ${command}`);
 
   // Execute the batch command with streaming
   const startTime = Date.now();
@@ -434,8 +454,13 @@ async function executeWithStreaming(command: string, cwd: string, verbose: boole
   const pseudoTerminal = createPseudoTerminal(true);
   let terminalOutput = '';
 
+  // Always log command execution start
+  logger.info(`Starting Java command execution via PseudoTerminal`);
+  logger.info(`  Working directory: ${cwd}`);
+  logger.info(`  Command: ${command}`);
+  
   if (verbose) {
-    logger.info(`Executing with PseudoTerminal: ${command}`);
+    logger.info(`Verbose mode enabled - additional execution details will be logged`);
   }
 
   try {

@@ -14,7 +14,7 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.version>3.8.8</maven.version>
+        <maven.version>3.9.10</maven.version>
         <maven-enforcer-plugin.phase>validate</maven-enforcer-plugin.phase>
         <kotlin.version>1.9.20</kotlin.version>
     </properties>
@@ -34,12 +34,11 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Maven Core for MavenSession -->
+        <!-- Maven Core for MavenSession and components -->
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-core</artifactId>
             <version>${maven.version}</version>
-            <scope>provided</scope>
         </dependency>
 
         <!-- Maven Project -->
@@ -54,14 +53,14 @@
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
-            <version>2.10.1</version>
+            <version>2.13.1</version>
         </dependency>
 
         <!-- Maven Invoker API for batch execution -->
         <dependency>
             <groupId>org.apache.maven.shared</groupId>
             <artifactId>maven-invoker</artifactId>
-            <version>3.2.0</version>
+            <version>3.3.0</version>
         </dependency>
 
         <!-- Test Dependencies -->
@@ -97,11 +96,25 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Maven CLI for proper Plexus container initialization -->
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-embedder</artifactId>
+            <version>3.9.10</version>
+        </dependency>
+
         <!-- SLF4J implementation to resolve logging warnings -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
-            <version>1.7.36</version>
+            <version>2.0.16</version>
+        </dependency>
+
+        <!-- Explicit Plexus Container dependency for newer constructor -->
+        <dependency>
+            <groupId>org.codehaus.plexus</groupId>
+            <artifactId>plexus-container-default</artifactId>
+            <version>2.1.1</version>
         </dependency>
     </dependencies>
 

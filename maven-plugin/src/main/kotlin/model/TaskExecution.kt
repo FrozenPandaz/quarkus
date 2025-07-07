@@ -22,7 +22,7 @@ data class TaskExecution(
     val projectRoot: String? = null,
     
     @SerializedName("properties")
-    val properties: Map<String, String> = emptyMap()
+    val properties: MutableMap<String, String> = mutableMapOf()
 ) {
     /**
      * Get the effective project root, defaulting to project basedir if not specified
