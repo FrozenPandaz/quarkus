@@ -38,11 +38,11 @@ class SaveSessionMojo : AbstractMojo() {
             val sessionDir = File(workspaceRoot, ".nx-maven-sessions")
             sessionDir.mkdirs()
 
-            // Save sessions for all projects in the reactor
-            val allProjects = session.allProjects
-            log.debug("Saving sessions for ${allProjects.size} projects")
+            // Save sessions only for projects in the current reactor (being executed)
+            val reactorProjects = session.projects
+            log.debug("Saving sessions for ${reactorProjects.size} reactor projects")
 
-            for (project in allProjects) {
+            for (project in reactorProjects) {
                 saveProjectSession(project, sessionDir)
             }
 

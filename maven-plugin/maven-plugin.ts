@@ -8,7 +8,7 @@ import {
   writeJsonFile,
 } from '@nx/devkit';
 import { dirname, join } from 'path';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, rmSync } from 'fs';
 import { spawn } from 'child_process';
 import { workspaceDataDirectory } from 'nx/src/utils/cache-directory';
 import { calculateHashForCreateNodes } from '@nx/devkit/src/utils/calculate-hash-for-create-nodes';
@@ -279,6 +279,23 @@ function findJavaAnalyzer(): string | null {
   return null;
 }
 
+/**
+ * Post-task execution hook to clean up Maven session files
+ */
+export async function postTasksExecution(options: any, context: any) {
+  const sessionDir = join(context.workspaceRoot, '.nx-maven-sessions');
+  
+  if (existsSync(sessionDir)) {
+    try {
+      rmSync(sessionDir, { recursive: true, force: true });
+      if (options?.verbose) {
+        console.log('Maven session files cleaned up successfully');
+      }
+    } catch (error) {
+      console.warn('Failed to clean up Maven session files:', error.message);
+    }
+  }
+}
 
 /**
  * Plugin configuration
@@ -287,4 +304,5 @@ export default {
   name: 'maven-plugin',
   createNodesV2,
   createDependencies,
+  postTasksExecution,
 };

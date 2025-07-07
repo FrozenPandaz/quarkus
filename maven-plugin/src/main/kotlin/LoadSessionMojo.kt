@@ -42,11 +42,11 @@ class LoadSessionMojo : AbstractMojo() {
                 return
             }
 
-            // Load sessions for all projects in the reactor
-            val allProjects = session.allProjects
-            log.debug("Loading sessions for ${allProjects.size} projects")
+            // Load sessions only for projects in the current reactor (being executed)
+            val reactorProjects = session.projects
+            log.debug("Loading sessions for ${reactorProjects.size} reactor projects")
 
-            for (project in allProjects) {
+            for (project in reactorProjects) {
                 loadProjectSession(project, sessionDir)
             }
 
