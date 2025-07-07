@@ -146,6 +146,14 @@ class SaveSessionMojo : AbstractMojo() {
             // Capture local repository path
             sessionData["localRepository"] = session.repositorySession.localRepository.basedir.absolutePath
 
+            // Capture goal execution results
+            val goalResults = captureGoalResults(project)
+            sessionData["goalResults"] = goalResults
+
+            // Capture execution timestamp
+            sessionData["executionTimestamp"] = System.currentTimeMillis()
+            sessionData["executionDate"] = java.time.Instant.now().toString()
+
             // Capture project metadata
             sessionData["projectInfo"] = mapOf(
                 "groupId" to project.groupId,
@@ -166,6 +174,72 @@ class SaveSessionMojo : AbstractMojo() {
                 log.debug("Session saving error for ${project.artifactId}", e)
             }
         }
+    }
+
+    /**
+     * Capture goal execution results and timing information
+     */
+    private fun captureGoalResults(project: MavenProject): Map<String, Any> {
+        val results = mutableMapOf<String, Any>()
+        
+        try {
+            // Capture basic execution context
+            results["projectBasedir"] = project.basedir.absolutePath
+            results["executionRootDirectory"] = session.executionRootDirectory ?: ""
+            
+            // Capture current request goals
+            val requestGoals = session.request?.goals ?: emptyList<String>()
+            results["requestedGoals"] = requestGoals
+            
+            // Capture lifecycle phase information if available
+            val lifecyclePhases = mutableListOf<Map<String, Any>>()
+            session.request?.goals?.forEach { goal ->
+                val phaseInfo = mutableMapOf<String, Any>()
+                phaseInfo["goal"] = goal
+                phaseInfo["timestamp"] = System.currentTimeMillis()
+                
+                // Try to extract plugin info from goal
+                if (goal.contains(":")) {
+                    val parts = goal.split(":")
+                    if (parts.size >= 2) {
+                        phaseInfo["plugin"] = "${parts[0]}:${parts[1]}"
+                        if (parts.size >= 3) {
+                            phaseInfo["goalName"] = parts[2]
+                        }
+                        if (parts.size >= 4) {
+                            phaseInfo["execution"] = parts[3]
+                        }
+                    }
+                }
+                
+                lifecyclePhases.add(phaseInfo)
+            }
+            results["lifecyclePhases"] = lifecyclePhases
+            
+            // Capture execution success indicators
+            results["buildSuccess"] = !session.hasExceptions()
+            if (session.hasExceptions()) {
+                val exceptions = session.result?.exceptions?.map { 
+                    mapOf(
+                        "message" to (it.message ?: "Unknown error"),
+                        "type" to it.javaClass.simpleName
+                    )
+                } ?: emptyList<Map<String, String>>()
+                results["exceptions"] = exceptions
+            }
+            
+            // Capture session timing
+            results["sessionStartTime"] = session.request?.startTime?.time ?: 0L
+            results["currentTime"] = System.currentTimeMillis()
+            
+            log.debug("Captured goal results for project: ${project.artifactId}")
+            
+        } catch (e: Exception) {
+            log.warn("Failed to capture complete goal results: ${e.message}")
+            results["captureError"] = e.message ?: "Unknown capture error"
+        }
+        
+        return results
     }
 
     /**

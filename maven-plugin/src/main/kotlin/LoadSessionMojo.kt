@@ -132,6 +132,13 @@ class LoadSessionMojo : AbstractMojo() {
                 log.debug("Restored local repository: $localRepo")
             }
 
+            // Load and expose goal results information
+            sessionData["goalResults"]?.let { goalResults ->
+                if (goalResults is Map<*, *>) {
+                    loadGoalResults(project, goalResults)
+                }
+            }
+
             log.info("Loaded session for project: ${project.artifactId}")
 
         } catch (e: Exception) {
@@ -139,6 +146,99 @@ class LoadSessionMojo : AbstractMojo() {
             if (log.isDebugEnabled) {
                 log.debug("Session loading error for ${project.artifactId}", e)
             }
+        }
+    }
+
+    /**
+     * Load goal results and expose them as Maven properties
+     */
+    private fun loadGoalResults(project: MavenProject, goalResults: Map<*, *>) {
+        try {
+            val propertyPrefix = "nx.${project.artifactId}.goalResults"
+            
+            // Expose basic execution context
+            goalResults["projectBasedir"]?.toString()?.let { basedir ->
+                session.userProperties.setProperty("$propertyPrefix.basedir", basedir)
+            }
+            
+            goalResults["executionRootDirectory"]?.toString()?.let { rootDir ->
+                session.userProperties.setProperty("$propertyPrefix.executionRoot", rootDir)
+            }
+            
+            // Expose requested goals
+            goalResults["requestedGoals"]?.let { goals ->
+                if (goals is List<*>) {
+                    val goalsStr = goals.joinToString(",") { it.toString() }
+                    session.userProperties.setProperty("$propertyPrefix.requestedGoals", goalsStr)
+                    log.debug("Restored requested goals: $goalsStr")
+                }
+            }
+            
+            // Expose build success status
+            goalResults["buildSuccess"]?.let { success ->
+                session.userProperties.setProperty("$propertyPrefix.buildSuccess", success.toString())
+                log.debug("Restored build success status: $success")
+            }
+            
+            // Expose timing information
+            goalResults["sessionStartTime"]?.toString()?.let { startTime ->
+                session.userProperties.setProperty("$propertyPrefix.sessionStartTime", startTime)
+            }
+            
+            goalResults["executionTimestamp"]?.toString()?.let { timestamp ->
+                session.userProperties.setProperty("$propertyPrefix.executionTimestamp", timestamp)
+            }
+            
+            goalResults["executionDate"]?.toString()?.let { date ->
+                session.userProperties.setProperty("$propertyPrefix.executionDate", date)
+            }
+            
+            // Expose lifecycle phases information
+            goalResults["lifecyclePhases"]?.let { phases ->
+                if (phases is List<*>) {
+                    phases.forEachIndexed { index, phase ->
+                        if (phase is Map<*, *>) {
+                            val phasePrefix = "$propertyPrefix.phase.$index"
+                            phase["goal"]?.toString()?.let { goal ->
+                                session.userProperties.setProperty("$phasePrefix.goal", goal)
+                            }
+                            phase["plugin"]?.toString()?.let { plugin ->
+                                session.userProperties.setProperty("$phasePrefix.plugin", plugin)
+                            }
+                            phase["goalName"]?.toString()?.let { goalName ->
+                                session.userProperties.setProperty("$phasePrefix.goalName", goalName)
+                            }
+                            phase["execution"]?.toString()?.let { execution ->
+                                session.userProperties.setProperty("$phasePrefix.execution", execution)
+                            }
+                        }
+                    }
+                    session.userProperties.setProperty("$propertyPrefix.phaseCount", phases.size.toString())
+                }
+            }
+            
+            // Expose any exceptions if present
+            goalResults["exceptions"]?.let { exceptions ->
+                if (exceptions is List<*>) {
+                    exceptions.forEachIndexed { index, exception ->
+                        if (exception is Map<*, *>) {
+                            val excPrefix = "$propertyPrefix.exception.$index"
+                            exception["message"]?.toString()?.let { message ->
+                                session.userProperties.setProperty("$excPrefix.message", message)
+                            }
+                            exception["type"]?.toString()?.let { type ->
+                                session.userProperties.setProperty("$excPrefix.type", type)
+                            }
+                        }
+                    }
+                    session.userProperties.setProperty("$propertyPrefix.exceptionCount", exceptions.size.toString())
+                }
+            }
+            
+            log.debug("Loaded goal results for project: ${project.artifactId}")
+            
+        } catch (e: Exception) {
+            log.warn("Failed to load goal results for ${project.artifactId}: ${e.message}")
         }
     }
 
