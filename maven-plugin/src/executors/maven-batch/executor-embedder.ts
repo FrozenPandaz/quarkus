@@ -141,18 +141,25 @@ async function runEmbedderExecutor(
     return { success: false, terminalOutput: error, error };
   }
 
-  // Check for embedder executor
-  const embedderExecutorClasspath = join(pluginDir, 'target/classes');
-  const dependencyPath = join(pluginDir, 'target/dependency');
+  // Check for embedder executor in separate project
+  const embedderExecutorJar = join(pluginDir, 'embedder-executor/target/embedder-executor-999-SNAPSHOT.jar');
+  const graphAnalyzerJar = join(pluginDir, 'graph-analyzer/target/graph-analyzer-999-SNAPSHOT.jar');
+  const dependencyPath = join(pluginDir, 'nx-plugin-core/target/dependency');
 
-  if (!existsSync(embedderExecutorClasspath)) {
-    const error = `Maven plugin not compiled. Run 'mvn compile' in ${pluginDir}`;
+  if (!existsSync(embedderExecutorJar)) {
+    const error = `Embedder executor not compiled. Run 'mvn package' in ${pluginDir}`;
+    logger.error(error);
+    return { success: false, terminalOutput: error, error };
+  }
+
+  if (!existsSync(graphAnalyzerJar)) {
+    const error = `Graph analyzer not compiled. Run 'mvn package' in ${pluginDir}`;
     logger.error(error);
     return { success: false, terminalOutput: error, error };
   }
 
   if (!existsSync(dependencyPath)) {
-    const error = `Maven dependencies not copied. Run 'mvn dependency:copy-dependencies' in ${pluginDir}`;
+    const error = `Maven dependencies not copied. Run 'mvn package' in ${pluginDir}/nx-plugin-core`;
     logger.error(error);
     return { success: false, terminalOutput: error, error };
   }
@@ -172,7 +179,7 @@ async function runEmbedderExecutor(
     }
 
     // Build command for embedder: goals, workspaceRoot, projects, outputFile, verbose
-    const classpath = `${embedderExecutorClasspath}:${dependencyPath}/*`;
+    const classpath = `${embedderExecutorJar}:${graphAnalyzerJar}:${dependencyPath}/*`;
     const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenEmbedderBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectRoot}" "${resultsFile}" ${verboseFlag}`;
 
     // Always log the Java command being executed
@@ -447,16 +454,21 @@ async function executeMultiProjectEmbedderBatch(
     throw new Error(`Maven plugin directory not found: ${pluginDir}`);
   }
 
-  // Check for embedder executor
-  const embedderExecutorClasspath = join(pluginDir, 'target/classes');
-  const dependencyPath = join(pluginDir, 'target/dependency');
+  // Check for embedder executor in separate project
+  const embedderExecutorJar = join(pluginDir, 'embedder-executor/target/embedder-executor-999-SNAPSHOT.jar');
+  const graphAnalyzerJar = join(pluginDir, 'graph-analyzer/target/graph-analyzer-999-SNAPSHOT.jar');
+  const dependencyPath = join(pluginDir, 'nx-plugin-core/target/dependency');
 
-  if (!existsSync(embedderExecutorClasspath)) {
-    throw new Error(`Maven plugin not compiled. Run 'mvn compile' in ${pluginDir}`);
+  if (!existsSync(embedderExecutorJar)) {
+    throw new Error(`Embedder executor not compiled. Run 'mvn package' in ${pluginDir}`);
+  }
+
+  if (!existsSync(graphAnalyzerJar)) {
+    throw new Error(`Graph analyzer not compiled. Run 'mvn package' in ${pluginDir}`);
   }
 
   if (!existsSync(dependencyPath)) {
-    throw new Error(`Maven dependencies not copied. Run 'mvn dependency:copy-dependencies' in ${pluginDir}`);
+    throw new Error(`Maven dependencies not copied. Run 'mvn package' in ${pluginDir}/nx-plugin-core`);
   }
 
   const goalsString = goals.join(',');
@@ -475,7 +487,7 @@ async function executeMultiProjectEmbedderBatch(
   }
 
   // Build command for embedder: goals, workspaceRoot, projects, outputFile, verbose
-  const classpath = `${embedderExecutorClasspath}:${dependencyPath}/*`;
+  const classpath = `${embedderExecutorJar}:${graphAnalyzerJar}:${dependencyPath}/*`;
   const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenEmbedderBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectsString}" "${resultsFile}" ${verboseFlag}`;
 
   // Always log the Java command being executed for multi-project batch

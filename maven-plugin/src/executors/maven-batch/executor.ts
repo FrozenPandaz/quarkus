@@ -75,18 +75,18 @@ export default async function runExecutor(
     return { success: false, terminalOutput: error, error };
   }
 
-  // Check for batch executor
-  const batchExecutorClasspath = join(pluginDir, 'target/classes');
-  const dependencyPath = join(pluginDir, 'target/dependency');
+  // Check for original executor in separate project
+  const originalExecutorJar = join(pluginDir, 'original-executor/target/original-executor-999-SNAPSHOT.jar');
+  const dependencyPath = join(pluginDir, 'nx-plugin-core/target/dependency');
 
-  if (!existsSync(batchExecutorClasspath)) {
-    const error = `Maven plugin not compiled. Run 'mvn compile' in ${pluginDir}`;
+  if (!existsSync(originalExecutorJar)) {
+    const error = `Original executor not compiled. Run 'mvn package' in ${pluginDir}`;
     logger.error(error);
     return { success: false, terminalOutput: error, error };
   }
 
   if (!existsSync(dependencyPath)) {
-    const error = `Maven dependencies not copied. Run 'mvn dependency:copy-dependencies' in ${pluginDir}`;
+    const error = `Maven dependencies not copied. Run 'mvn package' in ${pluginDir}/nx-plugin-core`;
     logger.error(error);
     return { success: false, terminalOutput: error, error };
   }
@@ -96,8 +96,8 @@ export default async function runExecutor(
     const verboseFlag = verbose ? 'true' : 'false';
 
     // Build command with new signature: goals, workspaceRoot, projects, verbose
-    const classpath = `${batchExecutorClasspath}:${dependencyPath}/*`;
-    const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenEmbedderBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectRoot}" ${verboseFlag}`;
+    const classpath = `${originalExecutorJar}:${dependencyPath}/*`;
+    const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectRoot}" ${verboseFlag}`;
 
     // Always log the Java command being executed
     logger.info(`Maven Batch Java Command:`);
@@ -107,7 +107,7 @@ export default async function runExecutor(
     logger.info(`  Java executable: java`);
     logger.info(`  System property: -Dmaven.multiModuleProjectDirectory="${workspaceRoot}"`);
     logger.info(`  Classpath: ${classpath}`);
-    logger.info(`  Main class: NxMavenEmbedderBatchExecutor`);
+    logger.info(`  Main class: NxMavenBatchExecutor`);
     logger.info(`  Arguments: "${goalsString}" "${workspaceRoot}" "${projectRoot}" ${verboseFlag}`);
     logger.info(`  Full command: ${command}`);
 
@@ -320,16 +320,16 @@ async function executeMultiProjectMavenBatch(
     throw new Error(`Maven plugin directory not found: ${pluginDir}`);
   }
 
-  // Check for batch executor
-  const batchExecutorClasspath = join(pluginDir, 'target/classes');
-  const dependencyPath = join(pluginDir, 'target/dependency');
+  // Check for original executor in separate project
+  const originalExecutorJar = join(pluginDir, 'original-executor/target/original-executor-999-SNAPSHOT.jar');
+  const dependencyPath = join(pluginDir, 'nx-plugin-core/target/dependency');
 
-  if (!existsSync(batchExecutorClasspath)) {
-    throw new Error(`Maven plugin not compiled. Run 'mvn compile' in ${pluginDir}`);
+  if (!existsSync(originalExecutorJar)) {
+    throw new Error(`Original executor not compiled. Run 'mvn package' in ${pluginDir}`);
   }
 
   if (!existsSync(dependencyPath)) {
-    throw new Error(`Maven dependencies not copied. Run 'mvn dependency:copy-dependencies' in ${pluginDir}`);
+    throw new Error(`Maven dependencies not copied. Run 'mvn package' in ${pluginDir}/nx-plugin-core`);
   }
 
   const goalsString = goals.join(',');
@@ -337,8 +337,8 @@ async function executeMultiProjectMavenBatch(
   const verboseFlag = verbose ? 'true' : 'false';
 
   // Build command with new signature: goals, workspaceRoot, projects, verbose
-  const classpath = `${batchExecutorClasspath}:${dependencyPath}/*`;
-  const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenEmbedderBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectsString}" ${verboseFlag}`;
+  const classpath = `${originalExecutorJar}:${dependencyPath}/*`;
+  const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectsString}" ${verboseFlag}`;
 
   // Always log the Java command being executed for multi-project batch
   logger.info(`Maven Multi-Project Batch Java Command:`);
@@ -348,7 +348,7 @@ async function executeMultiProjectMavenBatch(
   logger.info(`  Java executable: java`);
   logger.info(`  System property: -Dmaven.multiModuleProjectDirectory="${workspaceRoot}"`);
   logger.info(`  Classpath: ${classpath}`);
-  logger.info(`  Main class: NxMavenEmbedderBatchExecutor`);
+  logger.info(`  Main class: NxMavenBatchExecutor`);
   logger.info(`  Arguments: "${goalsString}" "${workspaceRoot}" "${projectsString}" ${verboseFlag}`);
   logger.info(`  Full command: ${command}`);
 
