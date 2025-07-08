@@ -28,13 +28,13 @@ import org.apache.maven.settings.building.DefaultSettingsBuilderFactory
 import org.apache.maven.settings.building.DefaultSettingsBuildingRequest
 import org.apache.maven.settings.building.SettingsBuilder
 import org.apache.maven.settings.building.SettingsBuildingRequest
-import org.codehaus.plexus.PlexusContainer
-import org.codehaus.plexus.DefaultPlexusContainer
-import org.codehaus.plexus.ContainerConfiguration
-import org.codehaus.plexus.DefaultContainerConfiguration
-import org.codehaus.plexus.PlexusConstants
 import org.codehaus.plexus.classworlds.ClassWorld
 import org.codehaus.plexus.component.repository.exception.ComponentLookupException
+import org.codehaus.plexus.DefaultPlexusContainer
+import org.codehaus.plexus.DefaultContainerConfiguration
+import org.codehaus.plexus.PlexusConstants
+import com.google.inject.Injector
+import com.google.inject.AbstractModule
 import java.io.File
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
@@ -48,7 +48,7 @@ import kotlin.system.exitProcess
 object NxMavenEmbedderBatchExecutor {
 
     private val gson = GsonBuilder().setPrettyPrinting().create()
-    private lateinit var plexusContainer: PlexusContainer
+    private lateinit var plexusContainer: org.codehaus.plexus.PlexusContainer
     private lateinit var mavenCli: MavenCli
     private var sessionContext: EmbedderSessionContext? = null
     private lateinit var sessionPersistence: EmbedderSessionPersistence
@@ -262,21 +262,28 @@ object NxMavenEmbedderBatchExecutor {
                 // Create ClassWorld with proper realm setup
                 val classWorld = ClassWorld("plexus.core", Thread.currentThread().contextClassLoader)
                 
-                // Create PlexusContainer with Maven component scanning enabled
+                // Create Plexus container with Eclipse Sisu (exactly like Maven does)
                 val configuration = DefaultContainerConfiguration()
                     .setAutoWiring(true)
                     .setComponentVisibility(PlexusConstants.REALM_VISIBILITY)
-                    .setClassPathScanning(PlexusConstants.SCANNING_ON)  // Enable component scanning
-                    .setClassWorld(classWorld)  // Use properly configured ClassWorld
+                    .setClassPathScanning(PlexusConstants.SCANNING_ON)
+                    .setClassWorld(classWorld)
+                    .setName("maven")
                 
-                plexusContainer = DefaultPlexusContainer(configuration)
+                // Create container with Guice module (same pattern as Maven's MavenCli.container())
+                plexusContainer = DefaultPlexusContainer(
+                    configuration,
+                    object : com.google.inject.AbstractModule() {
+                        override fun configure() {
+                            // Add any custom bindings here if needed
+                            // Maven binds ILoggerFactory here, we can add our own bindings
+                        }
+                    }
+                )
                 
-                // Additional component discovery for Maven's built-in components
-                // This ensures Maven's component.xml descriptors are properly loaded
-                plexusContainer.discoverComponents(plexusContainer.containerRealm)
-                
-                // Configure Aether repository system components for proper ProjectBuilder dependencies
-                configureRepositorySystem(verbose)
+                if (verbose) {
+                    println("✅ [INIT-CONTAINER] Eclipse Sisu injector created successfully")
+                }
                 
                 val containerDuration = System.currentTimeMillis() - containerStartTime
                 if (verbose) {
@@ -286,9 +293,9 @@ object NxMavenEmbedderBatchExecutor {
             } catch (e: Exception) {
                 val containerDuration = System.currentTimeMillis() - containerStartTime
                 if (verbose) {
-                    println("❌ [INIT-CONTAINER] Failed to initialize Maven container in ${containerDuration}ms")
+                    println("❌ [INIT-CONTAINER] Failed to initialize Eclipse Sisu injector in ${containerDuration}ms")
                 }
-                throw RuntimeException("Failed to initialize Maven container: ${e.message}", e)
+                throw RuntimeException("Failed to initialize Eclipse Sisu injector: ${e.message}", e)
             }
             
             // 3. Load Maven settings (user and global) early
@@ -307,7 +314,7 @@ object NxMavenEmbedderBatchExecutor {
             if (verbose) {
                 println("🔧 [INIT-POPULATOR] Getting execution request populator...")
             }
-            val executionRequestPopulator = getComponent<MavenExecutionRequestPopulator>("org.apache.maven.execution.MavenExecutionRequestPopulator")
+            val executionRequestPopulator = getComponent<MavenExecutionRequestPopulator>()
             val popDuration = System.currentTimeMillis() - popStartTime
             if (verbose) {
                 println("✅ [INIT-POPULATOR] Execution request populator obtained in ${popDuration}ms")
@@ -383,7 +390,7 @@ object NxMavenEmbedderBatchExecutor {
             if (verbose) {
                 println("🔧 [INIT-REPO] Initializing repository system...")
             }
-            val aetherRepositorySystem = getComponent<AetherRepositorySystem>("org.eclipse.aether.RepositorySystem")
+            val aetherRepositorySystem = getComponent<AetherRepositorySystem>()
             repositorySystemSession = createRepositorySystemSession(aetherRepositorySystem, settings, verbose)
             val repoDuration = System.currentTimeMillis() - repoStartTime
             if (verbose) {
@@ -471,7 +478,7 @@ object NxMavenEmbedderBatchExecutor {
         
         try {
             // Get project builder
-            val projectBuilder = getComponent<ProjectBuilder>("org.apache.maven.project.ProjectBuilder")
+            val projectBuilder = getComponent<ProjectBuilder>()
             
             // Create basic project building request
             val projectBuildingRequest = org.apache.maven.project.DefaultProjectBuildingRequest().apply {
@@ -595,7 +602,7 @@ object NxMavenEmbedderBatchExecutor {
         
         try {
             // Get lifecycle executor
-            val lifecycleExecutor = getComponent<LifecycleExecutor>("org.apache.maven.lifecycle.LifecycleExecutor")
+            val lifecycleExecutor = getComponent<LifecycleExecutor>()
             
             // Create execution request for this task
             val executionRequest = DefaultMavenExecutionRequest().apply {
@@ -671,7 +678,7 @@ object NxMavenEmbedderBatchExecutor {
                         )
                         
                         // Get lifecycle executor
-                        val lifecycleExecutor = getComponent<LifecycleExecutor>("org.apache.maven.lifecycle.LifecycleExecutor")
+                        val lifecycleExecutor = getComponent<LifecycleExecutor>()
                         
                         if (verbose) {
                             println("        🔄 [PARALLEL] Executing goals with ${batchGoalRequest.getDegreeOfConcurrency()} threads")
@@ -952,29 +959,6 @@ object NxMavenEmbedderBatchExecutor {
         }
     }
     
-    /**
-     * Configure repository system components for ProjectBuilder dependencies using Maven's modern approach
-     */
-    private fun configureRepositorySystem(verbose: Boolean) {
-        try {
-            if (verbose) {
-                println("🔧 [REPO-SYSTEM] Configuring repository system components...")
-            }
-            
-            // Let Maven's container autodiscovery handle the repository system
-            // The maven-resolver-provider dependency should provide the necessary components
-            // This is simpler and more reliable than manual Aether configuration
-            
-            if (verbose) {
-                println("✅ [REPO-SYSTEM] Repository system configuration delegated to Maven")
-            }
-            
-        } catch (e: Exception) {
-            if (verbose) {
-                println("⚠️  [REPO-SYSTEM] Repository system configuration issue: ${e.message}")
-            }
-        }
-    }
     
     /**
      * Setup environment variables that mvn command sets - exactly like Maven CLI
@@ -1222,24 +1206,13 @@ object NxMavenEmbedderBatchExecutor {
     
 
     /**
-     * IntelliJ-style robust component lookup with error handling
+     * Eclipse Sisu component lookup using Guice injector (same as Maven internal DI)
      */
-    private inline fun <reified T> getComponent(role: String): T {
+    private inline fun <reified T> getComponent(): T {
         return try {
-            plexusContainer.lookup(role) as T
+            plexusContainer.lookup(T::class.java)
         } catch (e: ComponentLookupException) {
-            throw RuntimeException("Failed to lookup component $role: ${e.message}", e)
-        }
-    }
-    
-    /**
-     * IntelliJ-style component lookup by class only
-     */
-    private inline fun <reified T> getComponent(clazz: Class<T>): T {
-        return try {
-            plexusContainer.lookup(clazz)
-        } catch (e: ComponentLookupException) {
-            throw RuntimeException("Failed to lookup component ${clazz.name}: ${e.message}", e)
+            throw RuntimeException("Failed to lookup component ${T::class.java.name}: ${e.message}", e)
         }
     }
     
@@ -1272,10 +1245,8 @@ object NxMavenEmbedderBatchExecutor {
      */
     private fun cleanupEmbedder() {
         try {
-            // Dispose the Plexus container
-            if (::plexusContainer.isInitialized) {
-                plexusContainer.dispose()
-            }
+            // Eclipse Sisu injector doesn't need explicit disposal
+            // The Guice injector will be garbage collected automatically
             sessionContext?.clearCaches()
         } catch (e: Exception) {
             System.err.println("Warning: Failed to cleanup embedder resources: ${e.message}")

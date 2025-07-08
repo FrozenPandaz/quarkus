@@ -7,6 +7,7 @@ import org.apache.maven.artifact.repository.ArtifactRepository
 import org.apache.maven.settings.Settings
 import org.eclipse.aether.RepositorySystemSession
 import org.codehaus.plexus.PlexusContainer
+import org.codehaus.plexus.component.repository.exception.ComponentLookupException
 import java.util.concurrent.ConcurrentHashMap
 import java.io.File
 
@@ -172,7 +173,7 @@ class MavenSessionFactory(
         
         try {
             // Try to use Maven's session factory from Plexus container
-            val maven = plexusContainer.lookup("org.apache.maven.Maven") as org.apache.maven.Maven
+            val maven = plexusContainer.lookup(org.apache.maven.Maven::class.java)
             
             // Use Maven core to create session - this is the proper way
             // Create a session using the Maven core approach
@@ -220,9 +221,9 @@ class MavenSessionFactory(
         // Try to use Plexus container to lookup session factory/builder
         try {
             // This is a fallback - try to find a session factory in the container
-            val sessionFactory = plexusContainer.lookup("sessionFactory")
+            // Note: sessionFactory lookup removed as it's not needed with Eclipse Sisu
             if (verbose) {
-                println("Found session factory: ${sessionFactory.javaClass.name}")
+                println("Using Eclipse Sisu injector for session creation")
             }
             // Use reflection to call factory methods if available
         } catch (e: Exception) {

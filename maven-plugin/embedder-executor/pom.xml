@@ -51,6 +51,23 @@
             <version>${maven.version}</version>
         </dependency>
 
+        <!-- Eclipse Sisu for proper Guice-based dependency injection (Maven's internal DI framework) -->
+        <dependency>
+            <groupId>org.eclipse.sisu</groupId>
+            <artifactId>org.eclipse.sisu.plexus</artifactId>
+            <version>0.9.0.M3</version>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.sisu</groupId>
+            <artifactId>org.eclipse.sisu.inject</artifactId>
+            <version>0.9.0.M3</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.inject</groupId>
+            <artifactId>guice</artifactId>
+            <version>5.1.0</version>
+        </dependency>
+
         <!-- JSON output -->
         <dependency>
             <groupId>com.google.code.gson</groupId>
