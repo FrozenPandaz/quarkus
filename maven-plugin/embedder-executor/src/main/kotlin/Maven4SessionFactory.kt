@@ -1,22 +1,20 @@
-
 import org.apache.maven.execution.*
 import org.apache.maven.project.MavenProject
-// import org.apache.maven.project.ProjectDependencyGraph
-// Removed RepositorySystem import - no longer needed with direct construction
-import org.apache.maven.artifact.repository.ArtifactRepository
-import org.apache.maven.settings.Settings
 import org.eclipse.aether.RepositorySystemSession
-import org.codehaus.plexus.PlexusContainer
-import org.codehaus.plexus.component.repository.exception.ComponentLookupException
-import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Inject
+import javax.inject.Named
+import javax.inject.Singleton
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Factory for creating proper Maven sessions for the embedder batch executor.
- * Creates sessions that can be used for actual goal execution.
+ * Maven 4.0 compatible session factory using JSR-330 dependency injection.
+ * This eliminates the need for PlexusContainer and uses modern DI patterns.
  */
-class MavenSessionFactory(
-    private val plexusContainer: PlexusContainer,
+@Named
+@Singleton
+class Maven4SessionFactory @Inject constructor(
+    private val sessionBuilder: MavenSessionBuilder? = null,
     private val verbose: Boolean = false
 ) {
     
@@ -24,7 +22,7 @@ class MavenSessionFactory(
     private val sessionCache = ConcurrentHashMap<String, MavenSession>()
     
     /**
-     * Create a Maven session for goal execution
+     * Create a Maven session for goal execution using Maven 4.0 patterns
      */
     fun createMavenSession(
         executionRequest: MavenExecutionRequest,
@@ -45,14 +43,14 @@ class MavenSessionFactory(
         
         try {
             if (verbose) {
-                println("Creating new Maven session for: ${currentProject?.artifactId ?: "root"}")
+                println("Creating new Maven 4.0 session for: ${currentProject?.artifactId ?: "root"}")
             }
             
             // Create Maven execution result
             val executionResult = DefaultMavenExecutionResult()
             
-            // Create Maven session using a compatible approach for Maven 3.8.8
-            val session = createCompatibleMavenSession(
+            // Create Maven session using Maven 4.0 compatible approach
+            val session = createMaven4Session(
                 executionRequest,
                 executionResult,
                 repositorySystemSession,
@@ -64,7 +62,7 @@ class MavenSessionFactory(
             sessionCache[sessionKey] = session
             
             if (verbose) {
-                println("Created Maven session successfully")
+                println("Created Maven 4.0 session successfully")
                 println("  Project: ${currentProject?.artifactId ?: "root"}")
                 println("  Projects in reactor: ${projects.size}")
                 println("  Goals: ${executionRequest.goals?.joinToString(", ") ?: "none"}")
@@ -73,7 +71,7 @@ class MavenSessionFactory(
             return session
             
         } catch (e: Exception) {
-            throw RuntimeException("Failed to create Maven session: ${e.message}", e)
+            throw RuntimeException("Failed to create Maven 4.0 session: ${e.message}", e)
         }
     }
     
@@ -124,9 +122,9 @@ class MavenSessionFactory(
     }
     
     /**
-     * Create a compatible Maven session that works with Maven 3.8.8
+     * Create a Maven 4.0 compatible session
      */
-    private fun createCompatibleMavenSession(
+    private fun createMaven4Session(
         executionRequest: MavenExecutionRequest,
         executionResult: MavenExecutionResult,
         repositorySystemSession: RepositorySystemSession,
@@ -134,64 +132,29 @@ class MavenSessionFactory(
         currentProject: MavenProject?
     ): MavenSession {
         
-        // Use MinimalMavenSession directly to avoid any Maven class lookups
-        // This completely bypasses the RepositorySystem dependency issue
         if (verbose) {
-            println("Using MinimalMavenSession directly (Eclipse Sisu compatible)")
+            println("Using Maven 4.0 session creation (JSR-330 compatible)")
         }
         
-        return MinimalMavenSession(
-            executionRequest,
-            executionResult,
-            repositorySystemSession,
-            projects.toMutableList(),
-            currentProject
-        )
-    }
-    
-    /**
-     * Create session using Maven's built-in approach
-     */
-    private fun createSessionWithConstructor(
-        executionRequest: MavenExecutionRequest,
-        executionResult: MavenExecutionResult,
-        repositorySystemSession: RepositorySystemSession,
-        projects: List<MavenProject>,
-        currentProject: MavenProject?
-    ): MavenSession {
-        
-        // Use MinimalMavenSession directly to avoid Maven class lookup
-        // This eliminates the RepositorySystem dependency issue
-        if (verbose) {
-            println("Using MinimalMavenSession (direct construction approach)")
+        // Try using sessionBuilder if available (Maven 4.0 pattern)
+        sessionBuilder?.let { builder ->
+            try {
+                return builder
+                    .withRequest(executionRequest)
+                    .withResult(executionResult)
+                    .withRepositorySession(repositorySystemSession)
+                    .withProjects(projects)
+                    .withCurrentProject(currentProject)
+                    .build()
+            } catch (e: Exception) {
+                if (verbose) {
+                    println("Warning: SessionBuilder failed, falling back to direct construction: ${e.message}")
+                }
+            }
         }
         
-        return MinimalMavenSession(
-            executionRequest,
-            executionResult,
-            repositorySystemSession,
-            projects.toMutableList(),
-            currentProject
-        )
-    }
-    
-    /**
-     * Create session using builder/factory approach
-     */
-    private fun createSessionWithBuilder(
-        executionRequest: MavenExecutionRequest,
-        executionResult: MavenExecutionResult,
-        repositorySystemSession: RepositorySystemSession,
-        projects: List<MavenProject>,
-        currentProject: MavenProject?
-    ): MavenSession {
-        
-        // Use MinimalMavenSession directly to avoid any Maven class lookups
-        if (verbose) {
-            println("Using MinimalMavenSession (builder approach)")
-        }
-        
-        return MinimalMavenSession(
+        // Fallback: Create Maven 4.0 compatible session directly
+        return Maven4Session(
             executionRequest,
             executionResult,
             repositorySystemSession,
@@ -222,7 +185,7 @@ class MavenSessionFactory(
     fun clearCache() {
         sessionCache.clear()
         if (verbose) {
-            println("Cleared Maven session cache")
+            println("Cleared Maven 4.0 session cache")
         }
     }
     
@@ -234,4 +197,16 @@ class MavenSessionFactory(
             "cachedSessions" to sessionCache.size
         )
     }
+}
+
+/**
+ * Placeholder for Maven 4.0 session builder (if available)
+ */
+interface MavenSessionBuilder {
+    fun withRequest(request: MavenExecutionRequest): MavenSessionBuilder
+    fun withResult(result: MavenExecutionResult): MavenSessionBuilder
+    fun withRepositorySession(session: RepositorySystemSession): MavenSessionBuilder
+    fun withProjects(projects: List<MavenProject>): MavenSessionBuilder
+    fun withCurrentProject(project: MavenProject?): MavenSessionBuilder
+    fun build(): MavenSession
 }

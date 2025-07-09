@@ -4,6 +4,7 @@ import { join } from 'path';
 import { existsSync, writeFileSync, readFileSync, unlinkSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { createPseudoTerminal } from 'nx/src/tasks-runner/pseudo-terminal';
+import { workspaceDataDirectory } from 'nx/src/utils/cache-directory';
 
 export interface MavenBatchExecutorOptions {
   goals: string[];
@@ -168,9 +169,9 @@ async function runEmbedderExecutor(
     const goalsString = goals.join(',');
     const verboseFlag = verbose ? 'true' : 'false';
 
-    // Create output file for results - use outputFile option or default to workspace tmp directory
+    // Create output file for results - use outputFile option or default to workspace data directory
     const outputFileName = `maven-embedder-results-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.json`;
-    const defaultOutputDir = join(context.workspaceRoot, 'tmp');
+    const defaultOutputDir = join(workspaceDataDirectory, 'maven-plugin');
     const resultsFile = outputFile || join(defaultOutputDir, outputFileName);
     
     // Ensure the output directory exists if we're creating the file
@@ -399,6 +400,31 @@ async function batchEmbedderExecutor(
     const uniqueGoals = Array.from(new Set(allGoals));
     const uniqueProjects = Array.from(new Set(allProjects));
 
+    // DEBUG: Log the task graph execution plan
+    console.log('\n=== TASK GRAPH EXECUTION PLAN ===');
+    console.log(`📋 Total tasks in graph: ${taskIds.length}`);
+    console.log(`🎯 Unique goals to execute: ${uniqueGoals.length} [${uniqueGoals.join(', ')}]`);
+    console.log(`📦 Unique projects to execute: ${uniqueProjects.length} [${uniqueProjects.join(', ')}]`);
+    console.log(`🔍 Verbose mode: ${verbose}`);
+    console.log('\n📊 Task breakdown:');
+    
+    for (const [taskId, options] of Object.entries(inputs)) {
+      const task = taskGraph.tasks[taskId];
+      if (task) {
+        const taskGoals = options.goals || [];
+        const projectRoot = options.projectRoot || task.target.project || '.';
+        console.log(`  • ${taskId}:`);
+        console.log(`    - Project: ${task.target.project}`);
+        console.log(`    - Target: ${task.target.target}`);
+        console.log(`    - Project Root: ${projectRoot}`);
+        console.log(`    - Goals: [${taskGoals.join(', ')}]`);
+        console.log(`    - Options: ${JSON.stringify(options, null, 6)}`);
+      }
+    }
+    
+    console.log('\n🚀 Executing embedder batch...');
+    console.log('=====================================\n');
+
     // If no tasks or goals, return empty results
     if (taskIds.length === 0 || uniqueGoals.length === 0) {
       return results;
@@ -409,6 +435,7 @@ async function batchEmbedderExecutor(
     const batchResult = await executeMultiProjectEmbedderBatch(uniqueGoals, uniqueProjects, batchOptions, process.cwd());
 
     // Generate per-task results based on task-specific goal success
+    console.log('\n=== TASK RESULTS MAPPING ===');
     for (const taskId of taskIds) {
       const taskSuccess = isTaskSuccessful(taskId, taskGoalMapping, batchResult);
       const taskOutput = getTaskSpecificOutput(taskId, taskGoalMapping, batchResult);
@@ -417,7 +444,14 @@ async function batchEmbedderExecutor(
         success: taskSuccess,
         terminalOutput: taskOutput
       };
+      
+      // DEBUG: Log each task result
+      const taskGoals = taskGoalMapping.get(taskId) || [];
+      console.log(`  📋 ${taskId}: ${taskSuccess ? '✅ SUCCESS' : '❌ FAILED'}`);
+      console.log(`    - Goals: [${taskGoals.join(', ')}]`);
+      console.log(`    - Output length: ${taskOutput.length} characters`);
     }
+    console.log('=============================\n');
 
     return results;
 
@@ -475,10 +509,10 @@ async function executeMultiProjectEmbedderBatch(
   const projectsString = projects.join(',');
   const verboseFlag = verbose ? 'true' : 'false';
 
-  // Create output file for results - use outputFile option or default to workspace tmp directory
+  // Create output file for results - use outputFile option or default to workspace data directory
   const { outputFile } = options;
   const outputFileName = `maven-embedder-results-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.json`;
-  const defaultOutputDir = join(workspaceRoot, 'tmp');
+  const defaultOutputDir = join(workspaceDataDirectory, 'maven-plugin');
   const resultsFile = outputFile || join(defaultOutputDir, outputFileName);
   
   // Ensure the output directory exists if we're creating the file

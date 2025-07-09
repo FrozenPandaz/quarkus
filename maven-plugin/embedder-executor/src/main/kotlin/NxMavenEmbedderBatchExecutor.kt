@@ -5,14 +5,15 @@ import org.apache.maven.cli.CliRequest
 import org.apache.maven.execution.*
 // import org.apache.maven.execution.DefaultMavenSession // Not available in this Maven version
 import org.apache.maven.Maven
-import org.apache.maven.model.building.ModelBuildingRequest
+// Removed ModelBuildingRequest import - no longer needed with direct construction
 import org.apache.maven.project.MavenProject
-import org.apache.maven.project.ProjectBuildingRequest
-import org.apache.maven.project.DefaultProjectBuildingRequest
-import org.apache.maven.project.ProjectBuilder
-import org.apache.maven.repository.RepositorySystem
+// Removed ProjectBuildingRequest imports - no longer needed with direct construction
+// Removed ProjectBuilder and RepositorySystem imports - no longer needed with direct construction
+import org.apache.maven.model.io.xpp3.MavenXpp3Reader
+import org.apache.maven.model.Model
+import org.apache.maven.model.Build
 import org.apache.maven.artifact.repository.ArtifactRepository
-import org.apache.maven.plugin.PluginManager
+// Removed PluginManager import - handled differently in Maven 4.0
 import org.apache.maven.plugin.descriptor.PluginDescriptor
 import org.apache.maven.plugin.MojoExecution
 import org.apache.maven.plugin.descriptor.MojoDescriptor
@@ -35,10 +36,14 @@ import org.codehaus.plexus.DefaultContainerConfiguration
 import org.codehaus.plexus.PlexusConstants
 import com.google.inject.Injector
 import com.google.inject.AbstractModule
+import org.slf4j.ILoggerFactory
+import org.slf4j.LoggerFactory
+// Removed MavenRepositorySystem import - no longer needed with direct construction
 import java.io.File
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import kotlin.system.exitProcess
+
 
 /**
  * Nx Maven Embedder Batch Executor - Uses Maven Embedder API for direct integration
@@ -52,14 +57,14 @@ object NxMavenEmbedderBatchExecutor {
     private lateinit var mavenCli: MavenCli
     private var sessionContext: EmbedderSessionContext? = null
     private lateinit var sessionPersistence: EmbedderSessionPersistence
-    private lateinit var sessionFactory: MavenSessionFactory
+    private lateinit var sessionFactory: Maven4SessionFactory
     private lateinit var repositorySystemSession: RepositorySystemSession
 
     @JvmStatic
     fun main(args: Array<String>) {
         if (args.size < 4) {
-            System.err.println("Usage: java NxMavenEmbedderBatchExecutor <goals> <workspaceRoot> <projects> <outputFile> [verbose]")
-            System.err.println("Example: java NxMavenEmbedderBatchExecutor \"compile,test\" \"/workspace\" \".,module1,module2\" \"/tmp/results.json\" true")
+            System.err.println("Usage: java NxMavenEmbedderBatchExecutor <goals> <workspaceRoot> <projects> <outputFile> [verbose] [additional-properties...]")
+            System.err.println("Example: java NxMavenEmbedderBatchExecutor \"compile,test\" \"/workspace\" \".,module1,module2\" \"/tmp/results.json\" true -DskipTests")
             exitProcess(1)
         }
 
@@ -68,11 +73,12 @@ object NxMavenEmbedderBatchExecutor {
         val projectsList = args[2]
         val outputFile = args[3]
         val verbose = if (args.size > 4) args[4].toBoolean() else true
+        val additionalProperties = if (args.size > 5) args.slice(5 until args.size) else emptyList()
 
         try {
             val goals = goalsList.split(",")
             val projects = projectsList.split(",")
-            val result = executeBatch(goals, workspaceRoot, projects, verbose)
+            val result = executeBatch(goals, workspaceRoot, projects, verbose, additionalProperties)
             
             // Write JSON result to output file
             writeResultsToFile(result, outputFile, verbose)
@@ -100,7 +106,7 @@ object NxMavenEmbedderBatchExecutor {
     /**
      * Execute multiple Maven goals across multiple projects using Maven Embedder API
      */
-    fun executeBatch(goals: List<String>, workspaceRoot: String, projects: List<String>, verbose: Boolean): Map<String, TaskExecutionResult> {
+    fun executeBatch(goals: List<String>, workspaceRoot: String, projects: List<String>, verbose: Boolean, additionalProperties: List<String> = emptyList()): Map<String, TaskExecutionResult> {
         val totalStartTime = System.currentTimeMillis()
         
         if (verbose) {
@@ -119,7 +125,7 @@ object NxMavenEmbedderBatchExecutor {
                 println("🔧 [INIT] Starting Maven Embedder initialization...")
             }
             
-            initializeEmbedder(workspaceRoot, verbose)
+            initializeEmbedder(workspaceRoot, verbose, additionalProperties)
             
             val initDuration = System.currentTimeMillis() - initStartTime
             if (verbose) {
@@ -238,7 +244,7 @@ object NxMavenEmbedderBatchExecutor {
     /**
      * Initialize Maven Embedder and create session context
      */
-    private fun initializeEmbedder(workspaceRoot: String, verbose: Boolean) {
+    private fun initializeEmbedder(workspaceRoot: String, verbose: Boolean, additionalProperties: List<String> = emptyList()) {
         try {
             // 1. Setup environment variables first (like mvn command does)
             val envStartTime = System.currentTimeMillis()
@@ -259,27 +265,33 @@ object NxMavenEmbedderBatchExecutor {
             System.setProperty("maven.multiModuleProjectDirectory", workspaceRoot)
             
             try {
-                // Create ClassWorld with proper realm setup
+                // Create ClassWorld with proper realm setup (Maven's approach)
                 val classWorld = ClassWorld("plexus.core", Thread.currentThread().contextClassLoader)
+                
+                // Get the core realm (mimic Maven's approach)
+                val coreRealm = classWorld.getClassRealm("plexus.core")
+                    ?: classWorld.realms.iterator().next()
                 
                 // Create Plexus container with Eclipse Sisu (exactly like Maven does)
                 val configuration = DefaultContainerConfiguration()
                     .setAutoWiring(true)
-                    .setComponentVisibility(PlexusConstants.REALM_VISIBILITY)
+                    .setJSR250Lifecycle(true)
                     .setClassPathScanning(PlexusConstants.SCANNING_ON)
+                    .setComponentVisibility(PlexusConstants.REALM_VISIBILITY)
                     .setClassWorld(classWorld)
+                    .setRealm(coreRealm)
                     .setName("maven")
                 
-                // Create container with Guice module (same pattern as Maven's MavenCli.container())
-                plexusContainer = DefaultPlexusContainer(
-                    configuration,
-                    object : com.google.inject.AbstractModule() {
-                        override fun configure() {
-                            // Add any custom bindings here if needed
-                            // Maven binds ILoggerFactory here, we can add our own bindings
-                        }
+                // Create Plexus container with Eclipse Sisu and AbstractModule (Maven's exact approach)
+                plexusContainer = DefaultPlexusContainer(configuration, object : AbstractModule() {
+                    override fun configure() {
+                        // Bind ILoggerFactory - Maven binds this for dependency injection
+                        val slf4jLoggerFactory = LoggerFactory.getILoggerFactory()
+                        bind(ILoggerFactory::class.java).toInstance(slf4jLoggerFactory)
+                        
+                        // TODO: Add CoreExports binding when we have access to the proper implementation
                     }
-                )
+                })
                 
                 if (verbose) {
                     println("✅ [INIT-CONTAINER] Eclipse Sisu injector created successfully")
@@ -337,6 +349,24 @@ object NxMavenEmbedderBatchExecutor {
                 
                 // Set system properties
                 systemProperties.setProperty("maven.multiModuleProjectDirectory", workspaceRoot)
+                
+                // Add additional properties from command line
+                additionalProperties.forEach { property ->
+                    if (property.startsWith("-D")) {
+                        val propString = property.substring(2)
+                        val eqIndex = propString.indexOf('=')
+                        if (eqIndex > 0) {
+                            val key = propString.substring(0, eqIndex)
+                            val value = propString.substring(eqIndex + 1)
+                            systemProperties.setProperty(key, value)
+                        } else {
+                            systemProperties.setProperty(propString, "true")
+                        }
+                        if (verbose) {
+                            println("🔧 [PROPERTY] Added system property: $property")
+                        }
+                    }
+                }
                 
                 // Enable batch mode
                 setInteractiveMode(false)
@@ -397,15 +427,15 @@ object NxMavenEmbedderBatchExecutor {
                 println("✅ [INIT-REPO] Repository system initialized in ${repoDuration}ms")
             }
             
-            // 9. Initialize Maven session factory
+            // 9. Initialize Maven session factory (Maven 4.0 compatible)
             val factoryStartTime = System.currentTimeMillis()
             if (verbose) {
-                println("🔧 [INIT-FACTORY] Creating Maven session factory...")
+                println("🔧 [INIT-FACTORY] Creating Maven 4.0 session factory...")
             }
-            sessionFactory = MavenSessionFactory(plexusContainer, verbose)
+            sessionFactory = Maven4SessionFactory(null, verbose)
             val factoryDuration = System.currentTimeMillis() - factoryStartTime
             if (verbose) {
-                println("✅ [INIT-FACTORY] Maven session factory created in ${factoryDuration}ms")
+                println("✅ [INIT-FACTORY] Maven 4.0 session factory created in ${factoryDuration}ms")
             }
             
             // 10. Initialize session persistence for disk-based session handling
@@ -441,6 +471,7 @@ object NxMavenEmbedderBatchExecutor {
                 println("✅ [INIT-CONTEXT] Session context initialized in ${contextDuration}ms")
             }
             
+            
             if (verbose) {
                 println("🎉 [INIT-COMPLETE] Maven Embedder initialized successfully")
                 println("📁 Workspace root: $workspaceRoot")
@@ -471,22 +502,87 @@ object NxMavenEmbedderBatchExecutor {
     }
 
     /**
+     * Create a MavenProject directly from project information, bypassing POM parsing
+     * This approach eliminates the need for ProjectBuilder and RepositorySystem dependencies
+     */
+    private fun createMavenProjectFromGraphData(
+        projectDir: File,
+        projectPath: String,
+        verbose: Boolean
+    ): MavenProject {
+        val pomFile = File(projectDir, "pom.xml")
+        
+        if (!pomFile.exists()) {
+            throw RuntimeException("POM file not found: ${pomFile.absolutePath}")
+        }
+        
+        try {
+            // Parse only the essential information from POM
+            val modelReader = MavenXpp3Reader()
+            val model: Model = pomFile.inputStream().use { inputStream ->
+                modelReader.read(inputStream)
+            }
+            
+            // Create a new Model instance with the essential data
+            val minimalModel = Model().apply {
+                groupId = model.groupId ?: model.parent?.groupId ?: "unknown"
+                artifactId = model.artifactId ?: "unknown"
+                version = model.version ?: model.parent?.version ?: "1.0.0"
+                packaging = model.packaging ?: "jar"
+                name = model.name ?: artifactId
+                description = model.description
+                
+                // Set up build configuration with standard directory layout
+                build = Build().apply {
+                    sourceDirectory = File(projectDir, "src/main/java").absolutePath
+                    testSourceDirectory = File(projectDir, "src/test/java").absolutePath
+                    outputDirectory = File(projectDir, "target/classes").absolutePath
+                    testOutputDirectory = File(projectDir, "target/test-classes").absolutePath
+                    directory = File(projectDir, "target").absolutePath
+                }
+            }
+            
+            // Create MavenProject using the minimal model
+            val mavenProject = MavenProject(minimalModel)
+            
+            // Set the file and basedir through the model (this is the correct way)
+            mavenProject.file = pomFile
+            // Use reflection to set basedir since it's marked as val but has a setter
+            try {
+                val setBasedirMethod = MavenProject::class.java.getMethod("setBasedir", File::class.java)
+                setBasedirMethod.invoke(mavenProject, projectDir)
+            } catch (e: Exception) {
+                // If reflection fails, the basedir will be derived from the file automatically
+                if (verbose) {
+                    println("Warning: Could not set basedir via reflection for ${model.artifactId}: ${e.message}")
+                }
+            }
+            
+            if (verbose) {
+                println("Created MavenProject from graph data:")
+                println("  - GroupId: ${mavenProject.groupId}")
+                println("  - ArtifactId: ${mavenProject.artifactId}")
+                println("  - Version: ${mavenProject.version}")
+                println("  - Packaging: ${mavenProject.packaging}")
+                println("  - BaseDir: ${mavenProject.basedir}")
+            }
+            
+            return mavenProject
+            
+        } catch (e: Exception) {
+            throw RuntimeException("Failed to create MavenProject from graph data for $projectPath: ${e.message}", e)
+        }
+    }
+
+    /**
      * Build task executions from goals and projects
      */
     private fun buildTaskExecutions(goals: List<String>, workspaceRoot: String, projects: List<String>, verbose: Boolean): List<TaskExecution> {
         val tasks = mutableListOf<TaskExecution>()
         
         try {
-            // Get project builder
-            val projectBuilder = getComponent<ProjectBuilder>()
-            
-            // Create basic project building request
-            val projectBuildingRequest = org.apache.maven.project.DefaultProjectBuildingRequest().apply {
-                validationLevel = ModelBuildingRequest.VALIDATION_LEVEL_MINIMAL
-                isProcessPlugins = false  // Simplified for now
-                isResolveDependencies = false  // Simplified for now
-                repositorySession = repositorySystemSession  // Set the repository session
-            }
+            // Use direct MavenProject creation from graph data
+            // This eliminates the need for ProjectBuilder and RepositorySystem dependencies
             
             for ((index, projectPath) in projects.withIndex()) {
                 val projectDir = if (projectPath == ".") {
@@ -504,9 +600,8 @@ object NxMavenEmbedderBatchExecutor {
                 }
                 
                 try {
-                    // Build Maven project
-                    val projectBuildingResult = projectBuilder.build(pomFile, projectBuildingRequest)
-                    val mavenProject = projectBuildingResult.project
+                    // Create MavenProject directly from graph data
+                    val mavenProject = createMavenProjectFromGraphData(projectDir, projectPath, verbose)
                     
                     // Create task execution for each project
                     val taskId = "task-${index}-${mavenProject.artifactId}"
@@ -541,7 +636,7 @@ object NxMavenEmbedderBatchExecutor {
                 }
             }
             
-        } catch (e: ComponentLookupException) {
+        } catch (e: Exception) {
             throw RuntimeException("Failed to build task executions: ${e.message}", e)
         }
         
@@ -549,194 +644,220 @@ object NxMavenEmbedderBatchExecutor {
     }
 
     /**
-     * Execute all tasks using Maven Embedder
+     * Execute all tasks using Maven Embedder in a single batch operation
+     * This leverages Maven's reactor to execute all goals across all projects efficiently
      */
     private fun executeTasks(tasks: List<TaskExecution>, verbose: Boolean): Map<String, TaskExecutionResult> {
         val results = mutableMapOf<String, TaskExecutionResult>()
+        val batchStartTime = System.currentTimeMillis()
         
-        for (task in tasks) {
-            val startTime = System.currentTimeMillis()
+        if (tasks.isEmpty()) {
+            if (verbose) {
+                println("🚫 [BATCH-EXEC] No tasks to execute")
+            }
+            return results
+        }
+        
+        if (verbose) {
+            println("🚀 [BATCH-EXEC] Starting batch execution of ${tasks.size} tasks")
+            println("📋 [BATCH-EXEC] Task overview:")
+            tasks.forEachIndexed { index, task ->
+                println("    ${index + 1}. ${task.taskId} -> Goals: ${task.goals.joinToString(", ")} | Project: ${task.project.artifactId}")
+            }
+        }
+        
+        try {
+            // Group tasks by goals to optimize batch execution
+            val goalGroups = tasks.groupBy { it.goals }
             
-            try {
+            if (verbose) {
+                println("📊 [BATCH-EXEC] Organized into ${goalGroups.size} goal groups:")
+                goalGroups.forEach { (goals, tasksInGroup) ->
+                    println("    Goals [${goals.joinToString(", ")}] -> ${tasksInGroup.size} projects")
+                }
+            }
+            
+            // Execute each goal group as a batch
+            for ((goalGroup, tasksInGroup) in goalGroups) {
+                val groupStartTime = System.currentTimeMillis()
+                
                 if (verbose) {
-                    println("Executing: ${task.getDescription()}")
+                    println("🔄 [BATCH-GROUP] Executing goal group: [${goalGroup.joinToString(", ")}]")
+                    println("📦 [BATCH-GROUP] Projects in this group: ${tasksInGroup.map { it.project.artifactId }.joinToString(", ")}")
                 }
                 
-                val taskResult = executeTask(task, verbose)
-                results[task.taskId] = taskResult
-                sessionContext?.storeExecutionResult(task.taskId, taskResult)
+                val groupResults = executeBatchGroup(goalGroup, tasksInGroup, verbose)
+                results.putAll(groupResults)
                 
-                val duration = System.currentTimeMillis() - startTime
+                val groupDuration = System.currentTimeMillis() - groupStartTime
+                val groupSuccess = groupResults.values.all { it.success }
+                
                 if (verbose) {
-                    println("Completed: ${task.taskId} in ${duration}ms - ${if (taskResult.success) "SUCCESS" else "FAILURE"}")
+                    println("✅ [BATCH-GROUP] Goal group completed in ${groupDuration}ms - ${if (groupSuccess) "SUCCESS" else "PARTIAL SUCCESS"}")
+                    println("📈 [BATCH-GROUP] Results: ${groupResults.values.count { it.success }}/${groupResults.size} tasks successful")
                 }
-                
-            } catch (e: Exception) {
-                val duration = System.currentTimeMillis() - startTime
+            }
+            
+        } catch (e: Exception) {
+            if (verbose) {
+                println("❌ [BATCH-EXEC] Batch execution failed: ${e.message}")
+                e.printStackTrace()
+            }
+            
+            // Create failed results for all tasks
+            tasks.forEach { task ->
                 val failedResult = TaskExecutionResult(
                     taskId = task.taskId,
                     success = false,
-                    duration = duration,
+                    duration = 0,
                     goalResults = emptyList(),
-                    errorMessage = "Task execution failed: ${e.message}"
+                    errorMessage = "Batch execution failed: ${e.message}"
                 )
-                
                 results[task.taskId] = failedResult
                 sessionContext?.storeExecutionResult(task.taskId, failedResult)
-                
-                if (verbose) {
-                    println("Failed: ${task.taskId} in ${duration}ms - ${e.message}")
-                }
             }
+        }
+        
+        val batchDuration = System.currentTimeMillis() - batchStartTime
+        val batchSuccess = results.values.all { it.success }
+        
+        if (verbose) {
+            println("🏁 [BATCH-EXEC] Batch execution completed in ${batchDuration}ms")
+            println("📊 [BATCH-EXEC] Final results: ${results.values.count { it.success }}/${results.size} tasks successful")
+            println("🎯 [BATCH-EXEC] Overall batch status: ${if (batchSuccess) "SUCCESS" else "PARTIAL SUCCESS"}")
         }
         
         return results
     }
-
+    
     /**
-     * Execute a single task using Maven Embedder
+     * Execute a group of tasks with the same goals using Maven reactor
      */
-    private fun executeTask(task: TaskExecution, verbose: Boolean): TaskExecutionResult {
-        val startTime = System.currentTimeMillis()
-        val goalResults = mutableListOf<GoalExecutionResult>()
+    private fun executeBatchGroup(goals: List<String>, tasks: List<TaskExecution>, verbose: Boolean): Map<String, TaskExecutionResult> {
+        val results = mutableMapOf<String, TaskExecutionResult>()
+        val groupStartTime = System.currentTimeMillis()
+        
+        if (verbose) {
+            println("🔧 [REACTOR] Setting up Maven reactor for batch execution")
+            println("🎯 [REACTOR] Goals: ${goals.joinToString(", ")}")
+            println("📦 [REACTOR] Projects: ${tasks.map { "${it.project.groupId}:${it.project.artifactId}" }.joinToString(", ")}")
+        }
         
         try {
-            // Get lifecycle executor
-            val lifecycleExecutor = getComponent<LifecycleExecutor>()
-            
-            // Create execution request for this task
-            val executionRequest = DefaultMavenExecutionRequest().apply {
-                setBaseDirectory(File(task.getEffectiveProjectRoot()))
-                setPom(File(task.project.basedir, "pom.xml"))
-                setGoals(task.goals)
+            // Create Maven execution request for all projects in this group
+            val allProjects = tasks.map { it.project }
+            val batchRequest = DefaultMavenExecutionRequest().apply {
+                setBaseDirectory(File(sessionContext?.mavenSession?.request?.baseDirectory?.toString() ?: "."))
+                setPom(File(sessionContext?.mavenSession?.request?.baseDirectory?.toString() ?: ".", "pom.xml"))
+                setGoals(goals)
                 setLoggingLevel(if (verbose) MavenExecutionRequest.LOGGING_LEVEL_DEBUG else MavenExecutionRequest.LOGGING_LEVEL_INFO)
                 setInteractiveMode(false)
                 
-                // Enable parallel execution for goals within this task
-                val availableCores = Runtime.getRuntime().availableProcessors()
-                val parallelThreads = maxOf(1, availableCores - 1) // Leave one core for system
-                setDegreeOfConcurrency(parallelThreads)
+                // Copy system properties from original request to batch request
+                sessionContext?.mavenSession?.request?.systemProperties?.let { originalProps ->
+                    originalProps.forEach { (key, value) ->
+                        systemProperties.setProperty(key.toString(), value.toString())
+                    }
+                }
                 
-                // Set Maven parallel execution properties that Maven uses internally
-                systemProperties.setProperty("maven.threads", parallelThreads.toString())
-                systemProperties.setProperty("maven.parallel", "true")
-                
-                // Add any task-specific properties
-                task.properties.forEach { (key, value) ->
-                    userProperties.setProperty(key, value)
+                // Enable parallel execution
+                setDegreeOfConcurrency(Runtime.getRuntime().availableProcessors())
+            }
+            
+            if (verbose) {
+                println("⚙️  [REACTOR] Batch request configuration:")
+                println("    Base directory: ${batchRequest.baseDirectory}")
+                println("    Goals: ${batchRequest.goals.joinToString(", ")}")
+                println("    Parallel threads: ${batchRequest.getDegreeOfConcurrency()}")
+                println("    Logging level: ${batchRequest.loggingLevel}")
+            }
+            
+            if (verbose) {
+                println("🔧 [REACTOR] About to create Maven session for batch execution...")
+                println("🔧 [REACTOR] Session factory: ${sessionFactory.javaClass.name}")
+                println("🔧 [REACTOR] Projects count: ${allProjects.size}")
+            }
+            
+            // Create Maven session for the entire batch
+            val batchSession = sessionFactory.createMavenSession(
+                batchRequest,
+                repositorySystemSession,
+                allProjects,
+                null // No current project for batch execution
+            )
+            
+            if (verbose) {
+                println("🔧 [REACTOR] Successfully created Maven session")
+            }
+            
+            if (verbose) {
+                println("🔄 [REACTOR] Created Maven session with ${allProjects.size} projects in reactor")
+                println("📋 [REACTOR] Reactor project list:")
+                allProjects.forEachIndexed { index, project ->
+                    println("    ${index + 1}. ${project.groupId}:${project.artifactId}:${project.version} (${project.packaging})")
                 }
             }
             
-            // TODO: Update session with current project when session is available
-            // sessionContext?.mavenSession?.apply {
-            //     currentProject = task.project
-            //     projects = listOf(task.project)
-            //     request.setGoals(task.goals)
-            // }
+            // Execute all goals for all projects using Maven's reactor
+            val reactorStartTime = System.currentTimeMillis()
             
-            // Execute all goals in parallel using Maven's built-in parallel execution
             if (verbose) {
-                println("      🚀 [PARALLEL] Executing ${task.goals.size} goals in parallel: ${task.goals.joinToString(", ")}")
+                println("🚀 [REACTOR] Starting Maven reactor execution...")
+                println("🔧 [REACTOR] About to get LifecycleExecutor component...")
             }
             
             try {
-                // Create batch execution request with all goals
-                val batchGoalRequest = DefaultMavenExecutionRequest().apply {
-                    setBaseDirectory(File(task.getEffectiveProjectRoot()))
-                    setPom(executionRequest.pom)
-                    setGoals(task.goals) // Execute all goals together
-                    setLoggingLevel(executionRequest.loggingLevel)
-                    setInteractiveMode(executionRequest.isInteractiveMode)
-                    
-                    // Copy parallel execution settings from main request
-                    setDegreeOfConcurrency(executionRequest.getDegreeOfConcurrency())
+                if (verbose) {
+                    println("🔧 [REACTOR] Inside try block, getting LifecycleExecutor...")
                 }
                 
-                // Capture output for all goals
+                // Get lifecycle executor for proper Maven goal execution
+                val lifecycleExecutor = getComponent<LifecycleExecutor>()
+                
+                if (verbose) {
+                    println("🔧 [REACTOR] Successfully got LifecycleExecutor: ${lifecycleExecutor != null}")
+                }
+                
+                if (verbose) {
+                    println("🔧 [REACTOR] Using LifecycleExecutor: ${lifecycleExecutor.javaClass.name}")
+                }
+                
+                // Capture output
                 val outputCapture = ByteArrayOutputStream()
                 val errorCapture = ByteArrayOutputStream()
                 val originalOut = System.out
                 val originalErr = System.err
                 
-                var batchSuccess = false
-                var batchExitCode = 0
+                var reactorSuccess = false
                 
                 try {
                     System.setOut(PrintStream(outputCapture))
                     System.setErr(PrintStream(errorCapture))
                     
-                    // Execute all goals in parallel using Maven lifecycle executor
-                    val batchStartTime = System.currentTimeMillis()
+                    if (verbose) {
+                        originalOut.println("🔄 [REACTOR] Executing reactor with ${goals.size} goals across ${allProjects.size} projects")
+                        originalOut.println("🔄 [REACTOR] Session goals: ${batchSession.goals}")
+                        originalOut.println("🔄 [REACTOR] Session projects: ${batchSession.projects.map { "${it.groupId}:${it.artifactId}" }}")
+                        originalOut.println("🔄 [REACTOR] About to call lifecycleExecutor.execute()...")
+                    }
                     
-                    try {
-                        // Get Maven session for this project with all goals
-                        val projectSession = sessionFactory.createProjectSession(
-                            batchGoalRequest,
-                            repositorySystemSession,
-                            task.project,
-                            task.goals
-                        )
-                        
-                        // Get lifecycle executor
-                        val lifecycleExecutor = getComponent<LifecycleExecutor>()
-                        
-                        if (verbose) {
-                            println("        🔄 [PARALLEL] Executing goals with ${batchGoalRequest.getDegreeOfConcurrency()} threads")
+                    // Execute the reactor
+                    lifecycleExecutor.execute(batchSession)
+                    
+                    if (verbose) {
+                        originalOut.println("🔄 [REACTOR] lifecycleExecutor.execute() completed")
+                    }
+                    
+                    // Check reactor execution result
+                    val hasExceptions = MavenUtils.hasSessionExceptions(batchSession)
+                    reactorSuccess = !hasExceptions
+                    
+                    if (verbose) {
+                        originalOut.println("🔄 [REACTOR] Session has exceptions: $hasExceptions")
+                        originalOut.println("🔄 [REACTOR] Reactor success: $reactorSuccess")
+                        if (hasExceptions) {
+                            originalOut.println("🔄 [REACTOR] Session exceptions: ${batchSession.result.exceptions}")
                         }
-                        
-                        // Execute all goals in parallel
-                        lifecycleExecutor.execute(projectSession)
-                        
-                        // Check if execution was successful
-                        batchSuccess = !MavenUtils.hasSessionExceptions(projectSession)
-                        batchExitCode = if (batchSuccess) 0 else 1
-                        
-                        val batchDuration = System.currentTimeMillis() - batchStartTime
-                        
-                        if (verbose) {
-                            if (batchSuccess) {
-                                println("        ✅ [PARALLEL] All goals completed successfully in ${batchDuration}ms")
-                            } else {
-                                println("        ❌ [PARALLEL] Some goals failed in ${batchDuration}ms")
-                            }
-                        }
-                        
-                        // Create individual goal results (Maven parallel execution doesn't provide per-goal timing)
-                        val avgDurationPerGoal = batchDuration / task.goals.size
-                        for ((index, goal) in task.goals.withIndex()) {
-                            val goalResult = GoalExecutionResult(
-                                goal = goal,
-                                success = batchSuccess, // All goals share the same success status in parallel execution
-                                duration = avgDurationPerGoal, // Approximate duration per goal
-                                output = if (index == 0) outputCapture.toString().lines().filter { it.isNotBlank() } else emptyList(), // Only include output once
-                                errors = if (!batchSuccess && index == 0) errorCapture.toString().lines().filter { it.isNotBlank() } else emptyList(),
-                                exitCode = batchExitCode
-                            )
-                            goalResults.add(goalResult)
-                        }
-                        
-                    } catch (e: Exception) {
-                        batchSuccess = false
-                        batchExitCode = 1
-                        
-                        if (verbose) {
-                            println("        ❌ [PARALLEL] Batch execution failed: ${e.message}")
-                        }
-                        
-                        // Create failed goal results for all goals
-                        for (goal in task.goals) {
-                            val failedGoalResult = GoalExecutionResult(
-                                goal = goal,
-                                success = false,
-                                duration = 0,
-                                output = emptyList(),
-                                errors = listOf(e.message ?: "Parallel execution failed"),
-                                exitCode = 1
-                            )
-                            goalResults.add(failedGoalResult)
-                        }
-                        
-                        throw e
                     }
                     
                 } finally {
@@ -744,38 +865,136 @@ object NxMavenEmbedderBatchExecutor {
                     System.setErr(originalErr)
                 }
                 
+                val reactorDuration = System.currentTimeMillis() - reactorStartTime
+                val outputLines = outputCapture.toString().lines().filter { it.isNotBlank() }
+                val errorLines = errorCapture.toString().lines().filter { it.isNotBlank() }
+                
+                if (verbose) {
+                    if (reactorSuccess) {
+                        println("✅ [REACTOR] Maven reactor completed successfully in ${reactorDuration}ms")
+                    } else {
+                        println("❌ [REACTOR] Maven reactor failed in ${reactorDuration}ms")
+                    }
+                    
+                    println("📊 [REACTOR] Output summary:")
+                    println("    Output lines: ${outputLines.size}")
+                    println("    Error lines: ${errorLines.size}")
+                    
+                    if (errorLines.isNotEmpty() && verbose) {
+                        println("🚨 [REACTOR] Error output preview:")
+                        errorLines.take(10).forEach { line ->
+                            println("    ERROR: $line")
+                        }
+                    }
+                }
+                
+                // Create individual task results from reactor execution
+                tasks.forEach { task ->
+                    val taskDuration = reactorDuration / tasks.size // Approximate per-task duration
+                    
+                    val goalResults = goals.map { goal ->
+                        GoalExecutionResult(
+                            goal = goal,
+                            success = reactorSuccess,
+                            duration = taskDuration / goals.size,
+                            output = if (reactorSuccess) outputLines.take(20) else emptyList(), // Limit output size
+                            errors = if (!reactorSuccess) errorLines.take(20) else emptyList(),
+                            exitCode = if (reactorSuccess) 0 else 1
+                        )
+                    }
+                    
+                    // Calculate dependencies for this task
+                    if (verbose) {
+                        println("🔗 [DEPS] Starting dependency calculation for task: ${task.taskId}")
+                    }
+                    val taskDependencies = calculateTaskDependencies(task, allProjects, verbose)
+                    if (verbose) {
+                        println("🔗 [DEPS] Completed dependency calculation for ${task.taskId}: ${taskDependencies.size} dependencies found")
+                    }
+                    
+                    val taskResult = TaskExecutionResult(
+                        taskId = task.taskId,
+                        success = reactorSuccess,
+                        duration = taskDuration,
+                        goalResults = goalResults,
+                        artifacts = emptyList(), // TODO: Extract from reactor if needed
+                        dependencies = taskDependencies,
+                        executionContext = mapOf(
+                            "projectPath" to (task.projectRoot ?: ""),
+                            "projectArtifactId" to (task.project.artifactId ?: ""),
+                            "goalCount" to goals.size,
+                            "reactorExecution" to true,
+                            "reactorProjectCount" to allProjects.size
+                        )
+                    )
+                    
+                    results[task.taskId] = taskResult
+                    sessionContext?.storeExecutionResult(task.taskId, taskResult)
+                    
+                    if (verbose) {
+                        println("📋 [TASK-RESULT] ${task.taskId}: ${if (taskResult.success) "SUCCESS" else "FAILURE"} (${taskDuration}ms)")
+                    }
+                }
+                
             } catch (e: Exception) {
                 if (verbose) {
-                    println("      ❌ [PARALLEL] Failed to execute goals: ${e.message}")
+                    println("❌ [REACTOR] Lifecycle executor failed: ${e.message}")
+                    println("❌ [REACTOR] Exception type: ${e.javaClass.name}")
+                    println("❌ [REACTOR] Exception stack trace:")
+                    e.printStackTrace()
                 }
-                // Goal results already added in inner catch block
+                
+                // Create failed results for all tasks in this group
+                tasks.forEach { task ->
+                    val failedResult = TaskExecutionResult(
+                        taskId = task.taskId,
+                        success = false,
+                        duration = 0,
+                        goalResults = goals.map { goal ->
+                            GoalExecutionResult(
+                                goal = goal,
+                                success = false,
+                                duration = 0,
+                                output = emptyList(),
+                                errors = listOf("Reactor execution failed: ${e.message}"),
+                                exitCode = 1
+                            )
+                        },
+                        errorMessage = "Reactor execution failed: ${e.message}"
+                    )
+                    results[task.taskId] = failedResult
+                    sessionContext?.storeExecutionResult(task.taskId, failedResult)
+                }
             }
             
-            val totalDuration = System.currentTimeMillis() - startTime
-            val allGoalsSuccessful = goalResults.all { it.success }
+        } catch (e: Exception) {
+            if (verbose) {
+                println("❌ [REACTOR] Session creation failed: ${e.message}")
+                println("❌ [REACTOR] Session exception type: ${e.javaClass.name}")
+                println("❌ [REACTOR] Session exception stack trace:")
+                e.printStackTrace()
+            }
             
-            // Collect artifacts and dependencies
-            val artifacts = task.project.artifacts?.map { ArtifactResult.fromMavenArtifact(it) } ?: emptyList()
-            val dependencies = task.project.dependencies?.map { DependencyResult.fromMavenDependency(it) } ?: emptyList()
-            
-            return TaskExecutionResult(
-                taskId = task.taskId,
-                success = allGoalsSuccessful,
-                duration = totalDuration,
-                goalResults = goalResults,
-                artifacts = artifacts,
-                dependencies = dependencies,
-                executionContext = mapOf(
-                    "projectPath" to task.getEffectiveProjectRoot(),
-                    "projectArtifactId" to task.project.artifactId,
-                    "goalCount" to task.goals.size
+            // Create failed results for all tasks in this group
+            tasks.forEach { task ->
+                val failedResult = TaskExecutionResult(
+                    taskId = task.taskId,
+                    success = false,
+                    duration = 0,
+                    goalResults = emptyList(),
+                    errorMessage = "Session creation failed: ${e.message}"
                 )
-            )
-            
-        } catch (e: ComponentLookupException) {
-            val duration = System.currentTimeMillis() - startTime
-            throw RuntimeException("Failed to execute task ${task.taskId}: ${e.message}", e)
+                results[task.taskId] = failedResult
+                sessionContext?.storeExecutionResult(task.taskId, failedResult)
+            }
         }
+        
+        val groupDuration = System.currentTimeMillis() - groupStartTime
+        if (verbose) {
+            println("🏁 [REACTOR] Batch group execution completed in ${groupDuration}ms")
+        }
+        
+        return results
     }
 
     /**
@@ -783,397 +1002,189 @@ object NxMavenEmbedderBatchExecutor {
      */
     private fun loadMavenSettings(verbose: Boolean): Settings {
         val settingsBuilder = DefaultSettingsBuilderFactory().newInstance()
+        val settingsRequest = DefaultSettingsBuildingRequest()
         
-        val request = DefaultSettingsBuildingRequest().apply {
-            // User settings file
-            val userSettingsFile = File(System.getProperty("user.home"), ".m2/settings.xml")
-            if (userSettingsFile.exists()) {
-                setUserSettingsFile(userSettingsFile)
-                if (verbose) {
-                    println("Loading user settings from: ${userSettingsFile.absolutePath}")
-                }
+        // Set global settings file
+        val globalSettingsFile = File(System.getProperty("maven.home", "/opt/apache-maven-3.9.10") + "/conf/settings.xml")
+        if (globalSettingsFile.exists()) {
+            settingsRequest.globalSettingsFile = globalSettingsFile
+            if (verbose) {
+                println("Loading global settings from: ${globalSettingsFile.absolutePath}")
             }
-            
-            // Global settings file
-            val mavenHome = System.getenv("MAVEN_HOME") ?: System.getProperty("maven.home")
-            if (mavenHome != null) {
-                val globalSettingsFile = File(mavenHome, "conf/settings.xml")
-                if (globalSettingsFile.exists()) {
-                    setGlobalSettingsFile(globalSettingsFile)
-                    if (verbose) {
-                        println("Loading global settings from: ${globalSettingsFile.absolutePath}")
-                    }
-                }
-            }
-            
-            // Set system properties
-            systemProperties = System.getProperties()
         }
         
-        return try {
-            settingsBuilder.build(request).effectiveSettings
+        // Set user settings file
+        val userSettingsFile = File(System.getProperty("user.home") + "/.m2/settings.xml")
+        if (userSettingsFile.exists()) {
+            settingsRequest.userSettingsFile = userSettingsFile
+            if (verbose) {
+                println("Loading user settings from: ${userSettingsFile.absolutePath}")
+            }
+        }
+        
+        try {
+            val settingsResult = settingsBuilder.build(settingsRequest)
+            return settingsResult.effectiveSettings
         } catch (e: Exception) {
             if (verbose) {
                 println("Warning: Failed to load Maven settings: ${e.message}")
             }
-            Settings() // Return default settings
+            return Settings()
         }
     }
-    
+
     /**
-     * Create and configure repository system session - exactly like Maven CLI
+     * Create repository system session for Maven operations
      */
-    private fun createRepositorySystemSession(repositorySystem: AetherRepositorySystem, settings: Settings, verbose: Boolean): RepositorySystemSession {
+    private fun createRepositorySystemSession(
+        repositorySystem: AetherRepositorySystem,
+        settings: Settings,
+        verbose: Boolean
+    ): RepositorySystemSession {
         val session = DefaultRepositorySystemSession()
         
-        // 1. Configure local repository (Maven CLI order of precedence)
-        val localRepoPath = System.getProperty("maven.repo.local")  // Command line -Dmaven.repo.local
-            ?: settings.localRepository                              // Settings.xml
-            ?: "${System.getProperty("user.home")}/.m2/repository"  // Default
-        
+        // Set local repository
+        val localRepoPath = settings.localRepository ?: "${System.getProperty("user.home")}/.m2/repository"
         val localRepo = LocalRepository(localRepoPath)
         session.localRepositoryManager = repositorySystem.newLocalRepositoryManager(session, localRepo)
         
-        // 2. Configure offline mode (like Maven CLI)
-        val offline = System.getProperty("maven.offline", "false").toBoolean() || settings.isOffline
-        session.isOffline = offline
-        
-        // 3. Configure transfer and repository listeners (like Maven CLI does)
-        // These would normally handle progress reporting, but we'll keep it simple for batch mode
-        
-        // 4. Configure checksums policy (like Maven CLI)
-        val checksumPolicy = System.getProperty("maven.checksums.policy")
-        if (checksumPolicy != null) {
-            // Apply checksum policy if specified
-        }
-        
-        // 5. Configure cache policies
-        session.setConfigProperty("aether.updateCheckManager.sessionState", "bypass")
-        
-        // 6. Configure user agent (like Maven CLI)
-        val userAgent = "Maven Embedder/${getMavenVersion()}"
-        session.setConfigProperty("aether.connector.userAgent", userAgent)
-        
-        // 7. Apply workspace reader for reactor resolution
-        // This is important for multi-module builds
-        session.setWorkspaceReader(null) // Will be set up during project building
-        
         if (verbose) {
-            println("Local repository: $localRepoPath")
-            println("Offline mode: $offline")
-            println("User agent: $userAgent")
+            println("Local repository: ${localRepoPath}")
         }
         
         return session
     }
-    
+
     /**
-     * Get Maven version (like Maven CLI shows)
-     */
-    private fun getMavenVersion(): String {
-        return try {
-            // Try to get Maven version from runtime
-            val mavenVersion = Maven::class.java.getPackage().implementationVersion
-            mavenVersion ?: "3.8.8" // fallback version
-        } catch (e: Exception) {
-            "3.8.8" // fallback version
-        }
-    }
-    
-    /**
-     * Apply settings configuration including profiles, mirrors, and proxies - exactly like Maven CLI
+     * Apply settings configuration to Maven execution request
      */
     private fun applySettingsConfiguration(request: MavenExecutionRequest, settings: Settings, verbose: Boolean) {
-        // 1. Apply active profiles (Maven CLI precedence order)
-        val activeProfiles = mutableListOf<String>()
+        // Apply settings to request
+        request.localRepositoryPath = File(settings.localRepository ?: "${System.getProperty("user.home")}/.m2/repository")
         
-        // From settings.xml
-        activeProfiles.addAll(settings.activeProfiles ?: emptyList())
-        
-        // From system properties (-P flag equivalent)
-        val systemActiveProfiles = System.getProperty("maven.profiles.active")
-        if (systemActiveProfiles != null) {
-            activeProfiles.addAll(systemActiveProfiles.split(",").map { it.trim() })
-        }
-        
-        // From environment variable
-        val envActiveProfiles = System.getenv("MAVEN_ACTIVE_PROFILES")
-        if (envActiveProfiles != null) {
-            activeProfiles.addAll(envActiveProfiles.split(",").map { it.trim() })
-        }
-        
-        if (activeProfiles.isNotEmpty()) {
-            request.activeProfiles = activeProfiles.distinct()
+        // Apply active profiles
+        settings.activeProfiles?.let { activeProfiles ->
+            request.activeProfiles = activeProfiles
             if (verbose) {
-                println("Active profiles: ${activeProfiles.distinct().joinToString(", ")}")
+                println("Active profiles: ${activeProfiles.joinToString(", ")}")
             }
         }
         
-        // 2. Apply inactive profiles (like Maven CLI -P !profile)
-        val inactiveProfiles = mutableListOf<String>()
-        val systemInactiveProfiles = System.getProperty("maven.profiles.inactive")
-        if (systemInactiveProfiles != null) {
-            inactiveProfiles.addAll(systemInactiveProfiles.split(",").map { it.trim() })
-        }
+        // Apply properties - settings doesn't have properties field directly
+        // Properties are typically applied via system properties or profiles
         
-        if (inactiveProfiles.isNotEmpty()) {
-            request.inactiveProfiles = inactiveProfiles
-            if (verbose) {
-                println("Inactive profiles: ${inactiveProfiles.joinToString(", ")}")
-            }
-        }
-        
-        // 3. Apply mirrors (handled internally by Maven but log them)
-        val mirrors = settings.mirrors ?: emptyList()
-        if (mirrors.isNotEmpty() && verbose) {
-            println("Configured mirrors: ${mirrors.size}")
-            mirrors.forEach { mirror ->
-                println("  Mirror: ${mirror.id} -> ${mirror.url} (for: ${mirror.mirrorOf})")
-            }
-        }
-        
-        // 4. Apply proxies (handled internally by Maven but log them)
-        val proxies = settings.proxies?.filter { it.isActive } ?: emptyList()
-        if (proxies.isNotEmpty() && verbose) {
-            println("Active proxies: ${proxies.size}")
-            proxies.forEach { proxy ->
-                println("  Proxy: ${proxy.protocol}://${proxy.host}:${proxy.port}")
-            }
-        }
-        
-        // 5. Apply servers (for authentication)
-        val servers = settings.servers ?: emptyList()
-        if (servers.isNotEmpty() && verbose) {
-            println("Configured servers: ${servers.size}")
-        }
-        
-        // 6. Set global settings path for Maven to use
         if (verbose) {
-            val profiles = settings.profiles ?: emptyList()
-            println("Available profiles: ${profiles.size}")
-            if (profiles.isNotEmpty()) {
-                profiles.forEach { profile ->
-                    println("  Profile: ${profile.id} (active by default: ${profile.activation?.isActiveByDefault ?: false})")
-                }
-            }
+            println("Applied settings configuration to Maven request")
         }
     }
-    
-    
+
     /**
-     * Setup environment variables that mvn command sets - exactly like Maven CLI
+     * Setup environment variables for Maven execution
      */
     private fun setupEnvironmentVariables() {
-        // 1. Set maven.multiModuleProjectDirectory (critical for Maven 3.3+)
+        // Set Maven multimodule directory if not already set
         if (System.getProperty("maven.multiModuleProjectDirectory") == null) {
-            val workspaceRoot = System.getProperty("user.dir")
-            System.setProperty("maven.multiModuleProjectDirectory", workspaceRoot)
+            System.setProperty("maven.multiModuleProjectDirectory", System.getProperty("user.dir"))
         }
         
-        // 2. Set MAVEN_HOME if not already set
-        if (System.getenv("MAVEN_HOME") == null) {
-            val mavenHome = System.getProperty("maven.home")
-            if (mavenHome != null) {
-                System.setProperty("maven.home", mavenHome)
-            }
-        }
-        
-        // 3. Set JAVA_HOME property from environment
-        val javaHome = System.getenv("JAVA_HOME")
-        if (javaHome != null) {
-            System.setProperty("java.home", javaHome)
-        }
-        
-        // 4. Apply MAVEN_OPTS exactly like Maven CLI
-        val mavenOpts = System.getenv("MAVEN_OPTS")
-        if (mavenOpts != null) {
-            // Parse MAVEN_OPTS and apply as system properties (like mvn script does)
-            val opts = mavenOpts.split("\\s+".toRegex())
-            for (opt in opts) {
-                when {
-                    opt.startsWith("-D") -> {
-                        // System property
-                        val prop = opt.substring(2)
-                        val eq = prop.indexOf('=')
-                        if (eq > 0) {
-                            val key = prop.substring(0, eq)
-                            val value = prop.substring(eq + 1)
-                            System.setProperty(key, value)
-                        } else {
-                            System.setProperty(prop, "true")
-                        }
-                    }
-                    opt.startsWith("-X") -> {
-                        // JVM options are typically handled at JVM startup
-                        // We can only log them here
-                        if (System.getProperty("maven.verbose", "false") == "true") {
-                            println("Note: JVM option $opt should be set at JVM startup")
-                        }
-                    }
-                }
-            }
-        }
-        
-        // 5. Set batch mode indicators (like Maven CLI)
-        System.setProperty("maven.batch.mode", "true")
-        System.setProperty("maven.terminal", "false")
-        
-        // 6. Disable color output by default in batch mode
-        if (System.getProperty("maven.color") == null) {
-            System.setProperty("maven.color", "false")
+        // Set Maven home if not already set
+        if (System.getProperty("maven.home") == null) {
+            System.setProperty("maven.home", "/opt/apache-maven-3.9.10")
         }
     }
-    
+
     /**
-     * Load previous session data for tasks
+     * Load previous session data for all tasks
      */
     private fun loadPreviousSessionData(tasks: List<TaskExecution>, verbose: Boolean) {
-        try {
-            if (!::sessionPersistence.isInitialized) {
+        if (verbose) {
+            println("📂 [SESSION] Loading previous session data for ${tasks.size} tasks")
+        }
+        
+        tasks.forEach { task ->
+            try {
+                val sessionData = sessionPersistence.loadSession(task.taskId)
+                sessionData?.let { data ->
+                    applySessionDataToTask(task, data, verbose)
+                }
+            } catch (e: Exception) {
                 if (verbose) {
-                    println("Session persistence not initialized, skipping load")
+                    println("⚠️  [SESSION] Failed to load session data for ${task.taskId}: ${e.message}")
                 }
-                return
-            }
-            
-            val projects = tasks.map { it.project.artifactId }
-            val sessionDataMap = sessionPersistence.loadBatchSession(projects)
-            
-            if (sessionDataMap.isNotEmpty()) {
-                if (verbose) {
-                    println("Loaded session data for ${sessionDataMap.size} projects")
-                }
-                
-                // Apply loaded session data to tasks
-                for (task in tasks) {
-                    val sessionData = sessionDataMap[task.project.artifactId]
-                    if (sessionData != null) {
-                        applySessionDataToTask(task, sessionData, verbose)
-                    }
-                }
-            } else {
-                if (verbose) {
-                    println("No previous session data found")
-                }
-            }
-            
-        } catch (e: Exception) {
-            if (verbose) {
-                println("Warning: Failed to load previous session data: ${e.message}")
             }
         }
     }
-    
+
     /**
-     * Save session data to disk after execution
+     * Save session data for all tasks
      */
     private fun saveSessionData(tasks: List<TaskExecution>, results: Map<String, TaskExecutionResult>, verbose: Boolean) {
-        try {
-            if (!::sessionPersistence.isInitialized) {
-                if (verbose) {
-                    println("Session persistence not initialized, skipping save")
+        if (verbose) {
+            println("💾 [SESSION] Saving session data for ${tasks.size} tasks")
+        }
+        
+        tasks.forEach { task ->
+            try {
+                val result = results[task.taskId]
+                if (result != null) {
+                    val sessionData = EmbedderSessionPersistence.SessionData(
+                        sessionId = task.taskId,
+                        timestamp = System.currentTimeMillis(),
+                        projects = listOf(task.project.artifactId ?: ""),
+                        goals = task.goals,
+                        artifacts = emptyList(),
+                        dependencies = emptyList(),
+                        properties = extractSessionProperties(tasks, results),
+                        buildDirectory = task.project.build?.directory,
+                        outputDirectory = task.project.build?.outputDirectory,
+                        sessionProperties = mapOf(
+                            "success" to result.success,
+                            "duration" to result.duration
+                        )
+                    )
+                    sessionPersistence.saveSession(sessionData)
                 }
-                return
-            }
-            
-            val projects = tasks.map { it.project.artifactId }
-            val sessionProperties = extractSessionProperties(tasks, results)
-            
-            sessionPersistence.saveBatchSession(projects, results.values.toList(), sessionProperties, null)
-            
-            if (verbose) {
-                println("Saved session data for ${projects.size} projects to disk")
-            }
-            
-        } catch (e: Exception) {
-            if (verbose) {
-                println("Warning: Failed to save session data: ${e.message}")
+            } catch (e: Exception) {
+                if (verbose) {
+                    println("⚠️  [SESSION] Failed to save session data for ${task.taskId}: ${e.message}")
+                }
             }
         }
     }
-    
+
     /**
-     * Apply loaded session data to a task
+     * Apply session data to a task
      */
     private fun applySessionDataToTask(task: TaskExecution, sessionData: EmbedderSessionPersistence.SessionData, verbose: Boolean) {
-        try {
-            // Apply build directories if available
-            sessionData.buildDirectory?.let { buildDir ->
-                task.properties["nx.build.directory"] = buildDir
-            }
-            sessionData.outputDirectory?.let { outputDir ->
-                task.properties["nx.build.outputDirectory"] = outputDir
-            }
-            
-            // Apply artifact information
-            if (sessionData.artifacts.isNotEmpty()) {
-                sessionData.artifacts.forEachIndexed { index, artifact ->
-                    artifact["file"]?.let { file ->
-                        task.properties["nx.artifact.$index.file"] = file
-                    }
-                    artifact["type"]?.let { type ->
-                        task.properties["nx.artifact.$index.type"] = type
-                    }
-                }
-                task.properties["nx.artifact.count"] = sessionData.artifacts.size.toString()
-            }
-            
-            // Apply session properties
-            sessionData.sessionProperties.forEach { (key: String, value: Any) ->
-                if (key.startsWith("nx.") && value != null) {
-                    task.properties[key] = value.toString()
-                }
-            }
-            
-            if (verbose) {
-                println("Applied session data to task ${task.taskId}: ${sessionData.sessionProperties.size} properties, ${sessionData.artifacts.size} artifacts")
-            }
-            
-        } catch (e: Exception) {
-            if (verbose) {
-                println("Warning: Failed to apply session data to task ${task.taskId}: ${e.message}")
-            }
+        if (verbose) {
+            println("📂 [SESSION] Applying session data to task: ${task.taskId}")
+        }
+        
+        // Apply session properties to task configuration
+        sessionData.properties.forEach { (key, value) ->
+            task.properties[key] = value
+        }
+        
+        if (verbose) {
+            println("✅ [SESSION] Applied ${sessionData.properties.size} session properties to ${task.taskId}")
         }
     }
-    
+
     /**
-     * Extract session properties from tasks and results
+     * Extract session properties from task results
      */
-    private fun extractSessionProperties(tasks: List<TaskExecution>, results: Map<String, TaskExecutionResult>): Map<String, Any> {
-        val sessionProperties = mutableMapOf<String, Any>()
+    private fun extractSessionProperties(tasks: List<TaskExecution>, results: Map<String, TaskExecutionResult>): Map<String, String> {
+        val sessionProperties = mutableMapOf<String, String>()
         
-        // Extract task-level properties
-        for (task in tasks) {
-            val taskPrefix = "nx.task.${task.taskId}"
-            sessionProperties["$taskPrefix.goals"] = task.goals.joinToString(",")
-            sessionProperties["$taskPrefix.projectRoot"] = task.projectRoot ?: task.getEffectiveProjectRoot()
-            sessionProperties["$taskPrefix.project.artifactId"] = task.project.artifactId ?: ""
-            sessionProperties["$taskPrefix.project.groupId"] = task.project.groupId ?: ""
-            sessionProperties["$taskPrefix.project.version"] = task.project.version ?: ""
-            
-            // Include custom task properties
-            task.properties.forEach { (key, value) ->
-                sessionProperties["$taskPrefix.property.$key"] = value
-            }
-        }
+        // Extract common execution properties
+        sessionProperties["executionTimestamp"] = System.currentTimeMillis().toString()
+        sessionProperties["taskCount"] = tasks.size.toString()
+        sessionProperties["successfulTasks"] = results.values.count { it.success }.toString()
+        sessionProperties["totalDuration"] = results.values.sumOf { it.duration }.toString()
         
-        // Extract result-level properties
-        for ((taskId, result) in results) {
-            val resultPrefix = "nx.result.$taskId"
-            sessionProperties["$resultPrefix.success"] = result.success
-            sessionProperties["$resultPrefix.duration"] = result.duration
-            sessionProperties["$resultPrefix.goalCount"] = result.goalResults?.size ?: 0
-            result.errorMessage?.let { error ->
-                sessionProperties["$resultPrefix.errorMessage"] = error
-            }
-        }
-        
-        // Global session properties
-        sessionProperties["nx.session.timestamp"] = System.currentTimeMillis()
-        sessionProperties["nx.session.taskCount"] = tasks.size
-        sessionProperties["nx.session.resultCount"] = results.size
-        sessionProperties["nx.session.successfulTasks"] = results.values.count { it.success }
-        sessionProperties["nx.session.failedTasks"] = results.values.count { !it.success }
+        // Add goal-specific properties
+        val allGoals = tasks.flatMap { it.goals }.distinct()
+        sessionProperties["executedGoals"] = allGoals.joinToString(",")
         
         return sessionProperties
     }
@@ -1204,7 +1215,6 @@ object NxMavenEmbedderBatchExecutor {
         }
     }
     
-
     /**
      * Eclipse Sisu component lookup using Guice injector (same as Maven internal DI)
      */
@@ -1250,6 +1260,51 @@ object NxMavenEmbedderBatchExecutor {
             sessionContext?.clearCaches()
         } catch (e: Exception) {
             System.err.println("Warning: Failed to cleanup embedder resources: ${e.message}")
+        }
+    }
+    
+    /**
+     * Calculate goal dependencies for a task - simplified basic implementation
+     */
+    private fun calculateTaskDependencies(task: TaskExecution, allProjects: List<MavenProject>, verbose: Boolean): List<DependencyResult> {
+        return try {
+            if (verbose) {
+                println("🔗 [DEPS] Analyzing project: ${task.project.artifactId}")
+                println("🔗 [DEPS] Goals: ${task.goals}")
+                println("🔗 [DEPS] Project dependencies: ${task.project.dependencies?.size ?: 0}")
+            }
+            
+            if (task.goals.isEmpty()) {
+                if (verbose) {
+                    println("🔗 [DEPS] No goals to analyze, returning empty dependencies")
+                }
+                return emptyList()
+            }
+            
+            val dependencies = mutableListOf<DependencyResult>()
+            
+            // Simple implementation: convert Maven project dependencies to DependencyResult
+            task.project.dependencies?.forEach { mavenDep ->
+                if (mavenDep != null) {
+                    if (verbose) {
+                        println("🔗 [DEPS] Processing dependency: ${mavenDep.groupId}:${mavenDep.artifactId}:${mavenDep.version}")
+                    }
+                    dependencies.add(DependencyResult.fromMavenDependency(mavenDep))
+                }
+            }
+            
+            if (verbose) {
+                println("🔗 [DEPS] Total Maven dependencies processed: ${dependencies.size}")
+            }
+            
+            return dependencies.distinctBy { "${it.groupId}:${it.artifactId}" }
+            
+        } catch (e: Exception) {
+            if (verbose) {
+                println("⚠️  [DEPS] Failed to calculate dependencies for ${task.taskId}: ${e.message}")
+                e.printStackTrace()
+            }
+            emptyList()
         }
     }
 }
