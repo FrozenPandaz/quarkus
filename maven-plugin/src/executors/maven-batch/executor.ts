@@ -77,10 +77,17 @@ export default async function runExecutor(
 
   // Check for original executor in separate project
   const originalExecutorJar = join(pluginDir, 'original-executor/target/original-executor-999-SNAPSHOT.jar');
+  const graphAnalyzerJar = join(pluginDir, 'graph-analyzer/target/graph-analyzer-999-SNAPSHOT.jar');
   const dependencyPath = join(pluginDir, 'nx-plugin-core/target/dependency');
 
   if (!existsSync(originalExecutorJar)) {
     const error = `Original executor not compiled. Run 'mvn package' in ${pluginDir}`;
+    logger.error(error);
+    return { success: false, terminalOutput: error, error };
+  }
+
+  if (!existsSync(graphAnalyzerJar)) {
+    const error = `Graph analyzer not compiled. Run 'mvn package' in ${pluginDir}`;
     logger.error(error);
     return { success: false, terminalOutput: error, error };
   }
@@ -92,15 +99,17 @@ export default async function runExecutor(
   }
 
   try {
-    const goalsString = goals.join(',');
+    // Use goals as-is for invoker (session management requires embedder)
+    const sessionGoals = goals;
+    const goalsString = sessionGoals.join(',');
     const verboseFlag = verbose ? 'true' : 'false';
 
     // Build command with new signature: goals, workspaceRoot, projects, verbose
-    const classpath = `${originalExecutorJar}:${dependencyPath}/*`;
+    const classpath = `${originalExecutorJar}:${graphAnalyzerJar}:${dependencyPath}/*`;
     const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectRoot}" ${verboseFlag}`;
 
     // Always log the Java command being executed
-    logger.info(`Maven Batch Java Command:`);
+    logger.info(`Maven Batch Java Command (Invoker Mode):`);
     logger.info(`  Goals: ${goals.join(', ')}`);
     logger.info(`  Project: ${projectRoot}`);
     logger.info(`  Working directory: ${pluginDir}`);
@@ -322,26 +331,33 @@ async function executeMultiProjectMavenBatch(
 
   // Check for original executor in separate project
   const originalExecutorJar = join(pluginDir, 'original-executor/target/original-executor-999-SNAPSHOT.jar');
+  const graphAnalyzerJar = join(pluginDir, 'graph-analyzer/target/graph-analyzer-999-SNAPSHOT.jar');
   const dependencyPath = join(pluginDir, 'nx-plugin-core/target/dependency');
 
   if (!existsSync(originalExecutorJar)) {
     throw new Error(`Original executor not compiled. Run 'mvn package' in ${pluginDir}`);
   }
 
+  if (!existsSync(graphAnalyzerJar)) {
+    throw new Error(`Graph analyzer not compiled. Run 'mvn package' in ${pluginDir}`);
+  }
+
   if (!existsSync(dependencyPath)) {
     throw new Error(`Maven dependencies not copied. Run 'mvn package' in ${pluginDir}/nx-plugin-core`);
   }
 
-  const goalsString = goals.join(',');
+  // Use goals as-is for batch invoker (session management requires embedder)
+  const sessionGoals = goals;
+  const goalsString = sessionGoals.join(',');
   const projectsString = projects.join(',');
   const verboseFlag = verbose ? 'true' : 'false';
 
   // Build command with new signature: goals, workspaceRoot, projects, verbose
-  const classpath = `${originalExecutorJar}:${dependencyPath}/*`;
+  const classpath = `${originalExecutorJar}:${graphAnalyzerJar}:${dependencyPath}/*`;
   const command = `java -Dmaven.multiModuleProjectDirectory="${workspaceRoot}" -cp "${classpath}" NxMavenBatchExecutor "${goalsString}" "${workspaceRoot}" "${projectsString}" ${verboseFlag}`;
 
   // Always log the Java command being executed for multi-project batch
-  logger.info(`Maven Multi-Project Batch Java Command:`);
+  logger.info(`Maven Multi-Project Batch Java Command (Invoker Mode):`);
   logger.info(`  Goals: ${goals.join(', ')}`);
   logger.info(`  Projects: ${projects.join(', ')}`);
   logger.info(`  Working directory: ${pluginDir}`);
