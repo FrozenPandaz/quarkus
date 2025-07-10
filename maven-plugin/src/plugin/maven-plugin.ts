@@ -191,9 +191,9 @@ async function runMavenAnalysis(options: MavenPluginOptions): Promise<any> {
     }
 
     // Build Maven command arguments
-    // Use the custom nx:analyze goal from our Java Maven plugin
+    // Use the simple-analyze goal from our simplified Java Maven plugin
     const mavenArgs = [
-        'io.quarkus:maven-plugin:999-SNAPSHOT:analyze',
+        'io.quarkus:simple-graph-analyzer:999-SNAPSHOT:simple-analyze',
         `-Dnx.outputFile=${outputFile}`,
         `-Dnx.verbose=${isVerbose}`
     ];
@@ -266,6 +266,9 @@ function detectMavenWrapper(): string {
 function findJavaAnalyzer(): string | null {
     const mavenPluginPath = join(workspaceRoot, 'maven-plugin');
     const possiblePaths = [
+        join(mavenPluginPath, 'simple-graph-analyzer/target/classes'),
+        join(mavenPluginPath, 'simple-graph-analyzer/target/simple-graph-analyzer-999-SNAPSHOT.jar'),
+        // Keep fallback to old analyzer for compatibility
         join(mavenPluginPath, 'graph-analyzer/target/classes'),
         join(mavenPluginPath, 'graph-analyzer/target/graph-analyzer-999-SNAPSHOT.jar'),
     ];

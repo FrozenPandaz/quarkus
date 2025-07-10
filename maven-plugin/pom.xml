@@ -19,7 +19,9 @@
     </properties>
 
     <modules>
+        <module>shared-models</module>
         <module>graph-analyzer</module>
+        <module>simple-graph-analyzer</module>
         <module>embedder-executor</module>
         <module>original-executor</module>
         <module>nx-plugin-core</module>
