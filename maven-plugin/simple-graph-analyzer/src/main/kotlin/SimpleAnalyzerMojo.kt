@@ -49,10 +49,11 @@ class SimpleAnalyzerMojo : AbstractMojo() {
             val createNodesResultGenerator = CreateNodesResultGenerator(session, reactorProjects, verbose, log)
             val createDependenciesGenerator = CreateDependenciesGenerator(session, reactorProjects, verbose, log)
             
-            // Generate create nodes results with simple target generation
+            // Generate create nodes results with comprehensive target generation
+            val targetGenerator = SimpleTargetGenerator(session, reactorProjects, verbose, log)
             val createNodesResults = createNodesResultGenerator.generateCreateNodesResults { projectConfig ->
-                // Replace the complex target generation with simple run-commands targets
-                generateSimpleTargets(projectConfig)
+                // Generate comprehensive targets (phases + plugin goals) using run-commands
+                targetGenerator.generateAllTargets(projectConfig)
             }
             
             logInfo("Generated ${createNodesResults.size} create nodes results")
@@ -83,70 +84,6 @@ class SimpleAnalyzerMojo : AbstractMojo() {
         }
     }
     
-    /**
-     * Generate simple run-commands targets for Maven lifecycle phases
-     */
-    private fun generateSimpleTargets(projectConfig: ProjectConfiguration): Map<String, TargetConfiguration> {
-        logInfo("Generating simple targets for project: ${projectConfig.name}")
-        
-        val targets = mutableMapOf<String, TargetConfiguration>()
-        val projectRoot = projectConfig.root ?: "."
-        
-        // Standard Maven lifecycle phases
-        val lifecyclePhases = listOf(
-            "validate" to emptyList(),
-            "compile" to listOf("validate"),
-            "test" to listOf("compile"),
-            "package" to listOf("test"),
-            "verify" to listOf("package"),
-            "install" to listOf("verify"),
-            "deploy" to listOf("install")
-        )
-        
-        lifecyclePhases.forEach { (phase, dependsOn) ->
-            val target = TargetConfiguration("nx:run-commands").apply {
-                options = mutableMapOf(
-                    "command" to "mvn $phase",
-                    "cwd" to projectRoot
-                )
-                this.dependsOn = dependsOn.toMutableList()
-                metadata = TargetMetadata(
-                    description = "Run Maven $phase lifecycle phase"
-                ).apply {
-                    technologies = mutableListOf("maven")
-                }
-            }
-            targets[phase] = target
-        }
-        
-        // Common Maven goals
-        val commonGoals = mapOf(
-            "clean" to "Clean project build artifacts",
-            "dependency-tree" to "Display project dependency tree",
-            "dependency-analyze" to "Analyze project dependencies",
-            "help-effective-pom" to "Display effective POM"
-        )
-        
-        commonGoals.forEach { (goalName, description) ->
-            val actualGoal = goalName.replace("-", ":")
-            val target = TargetConfiguration("nx:run-commands").apply {
-                options = mutableMapOf(
-                    "command" to "mvn $actualGoal",
-                    "cwd" to projectRoot
-                )
-                this.dependsOn = mutableListOf()
-                metadata = TargetMetadata(
-                    description = description
-                ).apply {
-                    technologies = mutableListOf("maven")
-                }
-            }
-            targets[goalName] = target
-        }
-        
-        logInfo("Generated ${targets.size} simple targets for ${projectConfig.name}")
-        return targets
-    }
     
     /**
      * Write the analysis result to the output file
