@@ -93,6 +93,9 @@ class CreateDependenciesGenerator(
         val source = formatProjectKey(project)
         var count = 0
         
+        // Calculate source file path - same as complex analyzer
+        val sourceFile = getRelativePomPath(project)
+        
         // Check declared dependencies - same as complex analyzer
         project.dependencies?.let { deps ->
             for (dep in deps) {
@@ -105,7 +108,8 @@ class CreateDependenciesGenerator(
                         val dependency = RawProjectGraphDependency(
                             source, 
                             target, 
-                            RawProjectGraphDependency.DependencyType.STATIC
+                            RawProjectGraphDependency.DependencyType.STATIC,
+                            sourceFile
                         )
                         dependencies.add(dependency)
                         count++
@@ -119,6 +123,41 @@ class CreateDependenciesGenerator(
         }
         
         return count
+    }
+    
+    /**
+     * Get relative path to pom.xml for a project
+     * Same logic as complex analyzer
+     */
+    private fun getRelativePomPath(project: MavenProject): String {
+        val pomFile = File(project.basedir, "pom.xml")
+        val workspaceRoot = File(session.executionRootDirectory)
+        val relativePath = getRelativePath(workspaceRoot, pomFile)
+        return if (relativePath.isEmpty()) "pom.xml" else relativePath
+    }
+    
+    /**
+     * Calculate relative path from workspace root to target file/directory
+     * Same logic as complex analyzer
+     */
+    private fun getRelativePath(workspaceRoot: File, target: File): String {
+        return try {
+            val workspacePath = workspaceRoot.canonicalPath
+            val targetPath = target.canonicalPath
+            
+            if (targetPath.startsWith(workspacePath)) {
+                var relative = targetPath.substring(workspacePath.length)
+                if (relative.startsWith("/") || relative.startsWith("\\")) {
+                    relative = relative.substring(1)
+                }
+                relative
+            } else {
+                targetPath
+            }
+        } catch (e: Exception) {
+            log.warn("Failed to calculate relative path, using absolute path: ${e.message}")
+            target.absolutePath
+        }
     }
     
     /**
