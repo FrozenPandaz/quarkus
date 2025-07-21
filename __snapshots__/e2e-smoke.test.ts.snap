@@ -42,9 +42,9 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot overa
   "hasDependencies": true,
   "hasNodes": true,
   "hasValidGraph": true,
-  "projectsWithDependencies": 1270,
-  "projectsWithTargets": 1296,
-  "totalProjects": 1296,
+  "projectsWithDependencies": 1273,
+  "projectsWithTargets": 1302,
+  "totalProjects": 1302,
 }
 `;
 

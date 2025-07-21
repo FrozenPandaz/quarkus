@@ -62,43 +62,90 @@ object NxMavenEmbedderBatchExecutor {
 
     @JvmStatic
     fun main(args: Array<String>) {
-        if (args.size < 4) {
-            System.err.println("Usage: java NxMavenEmbedderBatchExecutor <goals> <workspaceRoot> <projects> <outputFile> [verbose] [additional-properties...]")
-            System.err.println("Example: java NxMavenEmbedderBatchExecutor \"compile,test\" \"/workspace\" \".,module1,module2\" \"/tmp/results.json\" true -DskipTests")
-            exitProcess(1)
-        }
-
-        val goalsList = args[0]
-        val workspaceRoot = args[1] 
-        val projectsList = args[2]
-        val outputFile = args[3]
-        val verbose = if (args.size > 4) args[4].toBoolean() else true
-        val additionalProperties = if (args.size > 5) args.slice(5 until args.size) else emptyList()
-
+        // Enhanced error handling to debug the exit code 1 issue
         try {
-            val goals = goalsList.split(",")
-            val projects = projectsList.split(",")
-            val result = executeBatch(goals, workspaceRoot, projects, verbose, additionalProperties)
+            // Write to both stdout and stderr to ensure visibility
+            val debugMsg1 = "EMBEDDER DEBUG: Main method started with ${args.size} arguments"
+            val debugMsg2 = "EMBEDDER DEBUG: Arguments: ${args.joinToString(", ") { "\"$it\"" }}"
+            val debugMsg3 = "EMBEDDER DEBUG: Classpath: ${System.getProperty("java.class.path")}"
+            val debugMsg4 = "EMBEDDER DEBUG: Maven multimodule dir: ${System.getProperty("maven.multiModuleProjectDirectory")}"
             
-            // Write JSON result to output file
-            writeResultsToFile(result, outputFile, verbose)
+            System.err.println(debugMsg1)
+            System.err.println(debugMsg2)
+            System.err.println(debugMsg3)
+            System.err.println(debugMsg4)
             
-            // Exit with appropriate code
-            exitProcess(if (result.values.all { it.success }) 0 else 1)
+            // Also write to stdout to ensure PseudoTerminal captures it
+            System.out.println(debugMsg1)
+            System.out.println(debugMsg2)
+            System.out.println(debugMsg3)  
+            System.out.println(debugMsg4)
             
-        } catch (e: Exception) {
-            val errorResult = mapOf(
-                "error" to "Embedder batch executor failed: ${e.message}",
-                "success" to false
-            )
-            
-            // Write error to output file if possible, otherwise stderr
-            try {
-                writeResultsToFile(errorResult, outputFile, verbose)
-            } catch (writeError: Exception) {
-                System.err.println("Failed to write error to output file: ${writeError.message}")
-                System.err.println(gson.toJson(errorResult))
+            if (args.size < 4) {
+                System.err.println("EMBEDDER ERROR: Insufficient arguments - need at least 4, got ${args.size}")
+                System.err.println("Usage: java NxMavenEmbedderBatchExecutor <goals> <workspaceRoot> <projects> <outputFile> [verbose] [additional-properties...]")
+                System.err.println("Example: java NxMavenEmbedderBatchExecutor \"compile,test\" \"/workspace\" \".,module1,module2\" \"/tmp/results.json\" true -DskipTests")
+                exitProcess(1)
             }
+
+            val goalsList = args[0]
+            val workspaceRoot = args[1] 
+            val projectsList = args[2]
+            val outputFile = args[3]
+            val verbose = if (args.size > 4) args[4].toBoolean() else true
+            val additionalProperties = if (args.size > 5) args.slice(5 until args.size) else emptyList()
+
+            val parseMsg = "EMBEDDER DEBUG: Parsed arguments:\n  Goals: $goalsList\n  Workspace: $workspaceRoot\n  Projects: $projectsList\n  Output: $outputFile\n  Verbose: $verbose\n  Additional props: $additionalProperties"
+            System.err.println(parseMsg)
+            System.out.println(parseMsg)
+
+            try {
+                val goals = goalsList.split(",")
+                val projects = projectsList.split(",")
+                
+                val startMsg = "EMBEDDER DEBUG: Starting executeBatch..."
+                System.err.println(startMsg)
+                System.out.println(startMsg)
+                
+                val result = executeBatch(goals, workspaceRoot, projects, verbose, additionalProperties)
+                
+                val completedMsg = "EMBEDDER DEBUG: executeBatch completed, writing results..."
+                System.err.println(completedMsg)
+                System.out.println(completedMsg)
+                // Write JSON result to output file
+                writeResultsToFile(result, outputFile, verbose)
+                
+                val allSuccess = result.values.all { it.success }
+                System.err.println("EMBEDDER DEBUG: All tasks successful: $allSuccess")
+                
+                // Exit with appropriate code
+                exitProcess(if (allSuccess) 0 else 1)
+                
+            } catch (e: Exception) {
+                System.err.println("EMBEDDER ERROR: Exception in main execution: ${e.javaClass.simpleName}: ${e.message}")
+                e.printStackTrace()
+                
+                val errorResult = mapOf(
+                    "error" to "Embedder batch executor failed: ${e.message}",
+                    "success" to false,
+                    "exceptionType" to e.javaClass.name,
+                    "stackTrace" to e.stackTrace.take(10).map { it.toString() }
+                )
+                
+                // Write error to output file if possible, otherwise stderr
+                try {
+                    writeResultsToFile(errorResult, outputFile, verbose)
+                    System.err.println("EMBEDDER DEBUG: Error result written to output file")
+                } catch (writeError: Exception) {
+                    System.err.println("EMBEDDER ERROR: Failed to write error to output file: ${writeError.message}")
+                    System.err.println("EMBEDDER ERROR: Original error JSON: ${gson.toJson(errorResult)}")
+                }
+                exitProcess(1)
+            }
+            
+        } catch (e: Throwable) {
+            System.err.println("EMBEDDER FATAL: Unhandled throwable in main: ${e.javaClass.simpleName}: ${e.message}")
+            e.printStackTrace()
             exitProcess(1)
         }
     }

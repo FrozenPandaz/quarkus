@@ -45,6 +45,35 @@ nx graph --file graph.json
 nx show projects --verbose
 ```
 
+## Analyzer Configuration
+
+The Maven plugin supports two analyzer modes that can be switched using environment variables:
+
+### Simple Analyzer (Default)
+- **Usage**: Default behavior, no environment variable needed
+- **Features**: Basic run-commands targets for Maven phases and plugin goals
+- **Performance**: Faster analysis, suitable for most use cases
+- **Implementation**: Uses `simple-graph-analyzer` Maven plugin
+
+### Complex Analyzer
+- **Usage**: Set `NX_MAVEN_COMPLEX_ANALYZER=true`
+- **Features**: Advanced lifecycle phase analysis and comprehensive target generation
+- **Performance**: More detailed analysis, slower but more comprehensive
+- **Implementation**: Uses `graph-analyzer` Maven plugin
+
+```bash
+# Use simple analyzer (default)
+nx show projects
+
+# Use complex analyzer
+NX_MAVEN_COMPLEX_ANALYZER=true nx show projects
+
+# Set as environment variable for session
+export NX_MAVEN_COMPLEX_ANALYZER=true
+nx show projects
+nx graph
+```
+
 ## Development Workflow
 
 When making changes to the Maven plugin:

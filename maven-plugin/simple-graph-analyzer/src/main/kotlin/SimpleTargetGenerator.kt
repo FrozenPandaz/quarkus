@@ -75,10 +75,9 @@ class SimpleTargetGenerator(
         val allPhases = defaultPhases + cleanPhases + sitePhases
         
         allPhases.forEach { phase ->
-            val target = TargetConfiguration("nx:run-commands").apply {
+            val target = TargetConfiguration("@nx-quarkus/maven-plugin:maven-batch").apply {
                 options = mutableMapOf(
-                    "command" to "mvn $phase",
-                    "cwd" to projectRoot
+                    "goals" to listOf(phase)
                 )
                 dependsOn = calculatePhaseDependencies(phase).toMutableList()
                 metadata = TargetMetadata(
@@ -102,10 +101,12 @@ class SimpleTargetGenerator(
         
         logInfo("Generating common Maven plugin targets for project: ${project.artifactId}")
         
-        // Generate the most common Maven plugin goals that would be found in a typical Quarkus project
-        // Based on the analysis of what the complex analyzer actually generates
-        val commonTargets = mapOf(
-            // Maven core plugins (bound to lifecycle phases)
+        // Generate comprehensive Maven plugin goals to match what the complex analyzer discovers
+        // This includes all targets that the complex analyzer would generate through dynamic discovery
+        val commonTargets = mutableMapOf<String, String>()
+        
+        // Maven core plugins (bound to lifecycle phases) - these have @execution-id
+        commonTargets.putAll(mapOf(
             "maven-clean:clean@default-clean" to "mvn clean",
             "maven-compiler:compile@default-compile" to "mvn compile", 
             "maven-compiler:testCompile@default-testCompile" to "mvn test-compile",
@@ -116,19 +117,73 @@ class SimpleTargetGenerator(
             "maven-install:install@default-install" to "mvn install",
             "maven-deploy:deploy@default-deploy" to "mvn deploy",
             "maven-site:site@default-site" to "mvn site",
-            "maven-site:deploy@default-deploy" to "mvn site-deploy",
-            
-            // Additional common goals (without @execution)
-            "maven-compiler:compile" to "mvn compile",
-            "maven-compiler:testCompile" to "mvn test-compile",
-            "maven-surefire:test" to "mvn test",
-            
-            // Source plugin
+            "maven-site:deploy@default-deploy" to "mvn site-deploy"
+        ))
+        
+        // Additional common goals (without @execution-id) - standalone goals
+        commonTargets.putAll(mapOf(
+            "maven-compiler:compile" to "mvn compiler:compile",
+            "maven-compiler:testCompile" to "mvn compiler:testCompile",
+            "maven-surefire:test" to "mvn surefire:test",
+            "maven-clean:clean" to "mvn clean:clean",
+            "maven-resources:resources" to "mvn resources:resources",
+            "maven-resources:testResources" to "mvn resources:testResources",
+            "maven-jar:jar" to "mvn jar:jar",
+            "maven-install:install" to "mvn install:install",
+            "maven-deploy:deploy" to "mvn deploy:deploy",
+            "maven-site:site" to "mvn site:site"
+        ))
+        
+        // Source and Javadoc plugins
+        commonTargets.putAll(mapOf(
             "maven-source:jar-no-fork@attach-sources" to "mvn source:jar-no-fork",
-            
-            // Enforcer plugin  
-            "maven-enforcer:enforce@enforce" to "mvn enforcer:enforce"
-        )
+            "maven-source:jar-no-fork" to "mvn source:jar-no-fork",
+            "maven-source:jar" to "mvn source:jar",
+            "maven-javadoc:jar@attach-javadocs" to "mvn javadoc:jar",
+            "maven-javadoc:jar" to "mvn javadoc:jar"
+        ))
+        
+        // Enforcer plugin variants
+        commonTargets.putAll(mapOf(
+            "maven-enforcer:enforce@enforce" to "mvn enforcer:enforce",
+            "maven-enforcer:enforce" to "mvn enforcer:enforce"
+        ))
+        
+        // Additional plugin goals that complex analyzer commonly discovers
+        commonTargets.putAll(mapOf(
+            "maven-dependency:copy-dependencies" to "mvn dependency:copy-dependencies",
+            "maven-dependency:analyze" to "mvn dependency:analyze",
+            "maven-failsafe:integration-test" to "mvn failsafe:integration-test",
+            "maven-failsafe:verify" to "mvn failsafe:verify",
+            "build-helper:add-source" to "mvn build-helper:add-source",
+            "build-helper:add-test-source" to "mvn build-helper:add-test-source"
+        ))
+        
+        // Add common plugin goals that the complex analyzer discovers through getCommonGoalsForPlugin
+        // This matches the dynamic discovery logic from ExecutionPlanAnalysisService
+        project.buildPlugins?.forEach { plugin ->
+            val artifactId = plugin.artifactId
+            when {
+                artifactId.contains("compiler") -> {
+                    commonTargets["maven-compiler:compile"] = "mvn compiler:compile"
+                    commonTargets["maven-compiler:testCompile"] = "mvn compiler:testCompile"
+                }
+                artifactId.contains("surefire") -> {
+                    commonTargets["maven-surefire:test"] = "mvn surefire:test"
+                }
+                artifactId.contains("quarkus") -> {
+                    commonTargets["quarkus:dev"] = "mvn quarkus:dev"
+                    commonTargets["quarkus:build"] = "mvn quarkus:build"
+                }
+                artifactId.contains("spring-boot") -> {
+                    commonTargets["spring-boot:run"] = "mvn spring-boot:run"
+                    commonTargets["spring-boot:repackage"] = "mvn spring-boot:repackage"
+                }
+            }
+        }
+        
+        // Create targets from the comprehensive map  
+        targets.putAll(createTargetsFromMap(commonTargets.toMap(), projectRoot))
         
         // Check if this is a Quarkus extension project and add extension-specific goals
         if (isQuarkusExtensionProject(project)) {
@@ -157,8 +212,6 @@ class SimpleTargetGenerator(
             targets["forbiddenapis:check@verify-forbidden-apis"] = createTarget("mvn forbiddenapis:check", projectRoot, "Run forbiddenapis:check plugin goal") 
         }
         
-        targets.putAll(createTargetsFromMap(commonTargets, projectRoot))
-        
         logInfo("Generated ${targets.size} plugin goal targets for ${project.artifactId}")
         return targets
     }
@@ -176,10 +229,12 @@ class SimpleTargetGenerator(
      * Create a single target configuration
      */
     private fun createTarget(command: String, projectRoot: String, description: String): TargetConfiguration {
-        return TargetConfiguration("nx:run-commands").apply {
+        // Extract goal from command (e.g., "mvn compiler:compile" -> "compiler:compile")
+        val goal = command.removePrefix("mvn ").trim()
+        
+        return TargetConfiguration("@nx-quarkus/maven-plugin:maven-batch").apply {
             options = mutableMapOf(
-                "command" to command,
-                "cwd" to projectRoot
+                "goals" to listOf(goal)
             )
             dependsOn = mutableListOf()
             metadata = TargetMetadata(description).apply {

@@ -176,9 +176,24 @@ async function runMavenAnalysis(options: MavenPluginOptions): Promise<any> {
     // Check if verbose mode is enabled
     const isVerbose = options.verbose || process.env.NX_VERBOSE_LOGGING === 'true' || process.argv.includes('--verbose');
 
+    // Determine which analyzer to use based on environment variable
+    const useComplexAnalyzer = process.env.NX_MAVEN_COMPLEX_ANALYZER === 'true';
+    const analyzerType = useComplexAnalyzer ? 'complex' : 'simple';
+
     // Check if Java analyzer is available
-    if (!findJavaAnalyzer()) {
-        throw new Error('Maven analyzer not found. Please ensure maven-plugin is compiled.');
+    const availableAnalyzer = findJavaAnalyzer(useComplexAnalyzer);
+    if (!availableAnalyzer) {
+        const analyzerName = useComplexAnalyzer ? 'complex (graph-analyzer)' : 'simple (simple-graph-analyzer)';
+        const compilationHint = `
+To compile the Maven plugin, run:
+  npm run compile-java:fresh
+
+This will compile both simple and complex analyzers.
+
+Alternatively, you can compile manually:
+  cd maven-plugin && ../mvnw clean install -T6 -DskipTests -Ddevelocity.cache.local.enabled=false`;
+        
+        throw new Error(`Maven ${analyzerName} analyzer not found. Please ensure maven-plugin is compiled.${compilationHint}`);
     }
 
     // Detect Maven wrapper or fallback to 'mvn'
@@ -186,16 +201,24 @@ async function runMavenAnalysis(options: MavenPluginOptions): Promise<any> {
 
     if (isVerbose) {
         console.log(`Running Maven analysis with verbose logging enabled...`);
+        console.log(`Analyzer type: ${analyzerType} (NX_MAVEN_COMPLEX_ANALYZER=${process.env.NX_MAVEN_COMPLEX_ANALYZER || 'false'})`);
         console.log(`Maven executable: ${mavenExecutable}`);
         console.log(`Output file: ${outputFile}`);
     }
 
-    // Build Maven command arguments
-    // Use the simple-analyze goal from our simplified Java Maven plugin
-    const mavenArgs = [
+    // Build Maven command arguments based on analyzer type
+    const mavenArgs = useComplexAnalyzer ? [
+        'io.quarkus:graph-analyzer:999-SNAPSHOT:analyze',
+        `-Dnx.outputFile=${outputFile}`,
+        `-Dnx.verbose=${isVerbose}`,
+        '--batch-mode',
+        '--no-transfer-progress'
+    ] : [
         'io.quarkus:simple-graph-analyzer:999-SNAPSHOT:simple-analyze',
         `-Dnx.outputFile=${outputFile}`,
-        `-Dnx.verbose=${isVerbose}`
+        `-Dnx.verbose=${isVerbose}`,
+        '--batch-mode',
+        '--no-transfer-progress'
     ];
 
     // Always use quiet mode to suppress expected reactor dependency warnings
@@ -212,27 +235,92 @@ async function runMavenAnalysis(options: MavenPluginOptions): Promise<any> {
     await new Promise<void>((resolve, reject) => {
         const child = spawn(mavenExecutable, mavenArgs, {
             cwd: workspaceRoot,
-            stdio: 'inherit'
+            stdio: isVerbose ? 'inherit' : 'pipe',
+            detached: false
         });
 
-        // No timeout for very large codebases like Quarkus
+        let stdout = '';
+        let stderr = '';
+
+        // Collect output if not in verbose mode
+        if (!isVerbose) {
+            child.stdout?.on('data', (data) => {
+                stdout += data.toString();
+            });
+            child.stderr?.on('data', (data) => {
+                stderr += data.toString();
+            });
+        }
+
+        // Set a reasonable timeout for the Maven process
+        const timeout = setTimeout(() => {
+            child.kill('SIGTERM');
+            reject(new Error(`Maven analysis timed out after 5 minutes`));
+        }, 300000); // 5 minutes
+
+        const cleanup = () => {
+            if (!child.killed) {
+                child.kill('SIGTERM');
+                setTimeout(() => {
+                    if (!child.killed) {
+                        child.kill('SIGKILL');
+                    }
+                }, 5000);
+            }
+        };
+
         child.on('close', (code) => {
+            clearTimeout(timeout);
+            
+            // Remove our specific cleanup listeners
+            process.removeListener('exit', cleanup);
+            process.removeListener('SIGINT', cleanup);
+            process.removeListener('SIGTERM', cleanup);
+            
             if (isVerbose) {
                 console.log(`Maven process completed with exit code: ${code}`);
             }
+            
             if (code === 0) {
                 if (isVerbose) {
                     console.log(`Maven analysis completed successfully`);
                 }
                 resolve();
             } else {
-                reject(new Error(`Maven process exited with code ${code}`));
+                const analyzerName = useComplexAnalyzer ? 'complex (graph-analyzer)' : 'simple (simple-graph-analyzer)';
+                let errorMsg = `Maven ${analyzerName} process exited with code ${code}`;
+                
+                if (stderr) {
+                    errorMsg += `\nStderr: ${stderr}`;
+                }
+                if (stdout && !isVerbose) {
+                    errorMsg += `\nStdout: ${stdout}`;
+                }
+                
+                errorMsg += `\nMaven command: ${mavenExecutable} ${mavenArgs.join(' ')}`;
+                errorMsg += `\nWorking directory: ${workspaceRoot}`;
+                
+                console.error('Maven analysis failed:');
+                console.error(errorMsg);
+                reject(new Error(errorMsg));
             }
         });
 
         child.on('error', (error) => {
+            clearTimeout(timeout);
+            
+            // Remove our specific cleanup listeners
+            process.removeListener('exit', cleanup);
+            process.removeListener('SIGINT', cleanup);
+            process.removeListener('SIGTERM', cleanup);
+            
             reject(new Error(`Failed to spawn Maven process: ${error.message}`));
         });
+
+        // Register cleanup handlers
+        process.on('exit', cleanup);
+        process.on('SIGINT', cleanup);
+        process.on('SIGTERM', cleanup);
     });
 
     // Read and return JSON result
@@ -262,18 +350,34 @@ function detectMavenWrapper(): string {
 
 /**
  * Find the compiled Java Maven analyzer
+ * @param useComplex - If true, prioritize complex analyzer; if false, prioritize simple analyzer
  */
-function findJavaAnalyzer(): string | null {
+function findJavaAnalyzer(useComplex: boolean = false): string | null {
     const mavenPluginPath = join(workspaceRoot, 'maven-plugin');
-    const possiblePaths = [
-        join(mavenPluginPath, 'simple-graph-analyzer/target/classes'),
-        join(mavenPluginPath, 'simple-graph-analyzer/target/simple-graph-analyzer-999-SNAPSHOT.jar'),
-        // Keep fallback to old analyzer for compatibility
+    
+    // Define analyzer paths based on preference
+    const complexPaths = [
         join(mavenPluginPath, 'graph-analyzer/target/classes'),
         join(mavenPluginPath, 'graph-analyzer/target/graph-analyzer-999-SNAPSHOT.jar'),
     ];
+    
+    const simplePaths = [
+        join(mavenPluginPath, 'simple-graph-analyzer/target/classes'),
+        join(mavenPluginPath, 'simple-graph-analyzer/target/simple-graph-analyzer-999-SNAPSHOT.jar'),
+    ];
 
-    for (const path of possiblePaths) {
+    // Check paths in order of preference
+    const orderedPaths = useComplex ? [...complexPaths, ...simplePaths] : [...simplePaths, ...complexPaths];
+
+    // Debug: Log which paths we're checking
+    if (process.env.NX_VERBOSE_LOGGING === 'true' || process.argv.includes('--verbose')) {
+        console.log(`Looking for ${useComplex ? 'complex' : 'simple'} analyzer in paths:`);
+        orderedPaths.forEach(path => {
+            console.log(`  ${existsSync(path) ? '✅' : '❌'} ${path}`);
+        });
+    }
+
+    for (const path of orderedPaths) {
         if (existsSync(path)) {
             return path;
         }
