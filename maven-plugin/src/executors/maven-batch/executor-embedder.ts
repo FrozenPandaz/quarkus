@@ -392,7 +392,10 @@ async function batchEmbedderExecutor(
 
         // Use first task's options as base, enable verbose if any task requests it
         if (!commonOptions) commonOptions = options;
-        if (options.verbose) verbose = true;
+        if (options.verbose) {
+          verbose = true;
+          console.log(`🔍 [VERBOSE] Verbose mode enabled by task: ${taskId}`);
+        }
       }
     }
 
@@ -539,7 +542,17 @@ async function executeMultiProjectEmbedderBatch(
 
   // Execute the embedder command with streaming
   const startTime = Date.now();
+  if (verbose) {
+    logger.info(`🚀 [EXECUTION] Starting Maven embedder batch execution`);
+    logger.info(`⏰ [EXECUTION] Start time: ${new Date(startTime).toISOString()}`);
+  }
   const output = await executeWithStreaming(command, pluginDir, verbose);
+  const endTime = Date.now();
+  if (verbose) {
+    logger.info(`✅ [EXECUTION] Maven embedder batch execution completed`);
+    logger.info(`⏰ [EXECUTION] End time: ${new Date(endTime).toISOString()}`);
+    logger.info(`⏱️  [EXECUTION] Total execution time: ${endTime - startTime}ms`);
+  }
 
   // Read JSON result from output file
   if (!existsSync(resultsFile)) {

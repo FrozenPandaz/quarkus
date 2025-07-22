@@ -170,6 +170,11 @@ object NxMavenEmbedderBatchExecutor {
             val initStartTime = System.currentTimeMillis()
             if (verbose) {
                 println("🔧 [INIT] Starting Maven Embedder initialization...")
+                println("🔧 [INIT] Working directory: $workspaceRoot")
+                println("🔧 [INIT] Additional properties: ${additionalProperties.joinToString(", ")}")
+                println("🔧 [INIT] Java version: ${System.getProperty("java.version")}")
+                println("🔧 [INIT] Maven home: ${System.getProperty("maven.home") ?: "Not set"}")
+                println("🔧 [INIT] User home: ${System.getProperty("user.home")}")
             }
             
             initializeEmbedder(workspaceRoot, verbose, additionalProperties)

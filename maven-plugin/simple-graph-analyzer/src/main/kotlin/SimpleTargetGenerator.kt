@@ -75,9 +75,10 @@ class SimpleTargetGenerator(
         val allPhases = defaultPhases + cleanPhases + sitePhases
         
         allPhases.forEach { phase ->
-            val target = TargetConfiguration("@nx-quarkus/maven-plugin:maven-batch").apply {
+            val target = TargetConfiguration("nx:run-commands").apply {
                 options = mutableMapOf(
-                    "goals" to listOf(phase)
+                    "command" to "mvn $phase",
+                    "cwd" to projectRoot
                 )
                 dependsOn = calculatePhaseDependencies(phase).toMutableList()
                 metadata = TargetMetadata(
@@ -229,12 +230,10 @@ class SimpleTargetGenerator(
      * Create a single target configuration
      */
     private fun createTarget(command: String, projectRoot: String, description: String): TargetConfiguration {
-        // Extract goal from command (e.g., "mvn compiler:compile" -> "compiler:compile")
-        val goal = command.removePrefix("mvn ").trim()
-        
-        return TargetConfiguration("@nx-quarkus/maven-plugin:maven-batch").apply {
+        return TargetConfiguration("nx:run-commands").apply {
             options = mutableMapOf(
-                "goals" to listOf(goal)
+                "command" to command,
+                "cwd" to projectRoot
             )
             dependsOn = mutableListOf()
             metadata = TargetMetadata(description).apply {
