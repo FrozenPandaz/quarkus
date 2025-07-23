@@ -67,7 +67,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "build-helper:add-source": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -76,9 +76,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run build-helper:add-source plugin goal",
         },
         "options": {
-          "goals": [
-            "build-helper:add-source",
-          ],
+          "command": "mvn build-helper:add-source",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -86,7 +85,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "build-helper:add-test-source": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -95,9 +94,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run build-helper:add-test-source plugin goal",
         },
         "options": {
-          "goals": [
-            "build-helper:add-test-source",
-          ],
+          "command": "mvn build-helper:add-test-source",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -105,7 +103,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "buildnumber:create@get-scm-revision": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -114,9 +112,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run buildnumber:create plugin goal",
         },
         "options": {
-          "goals": [
-            "buildnumber:create",
-          ],
+          "command": "mvn buildnumber:create",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -126,7 +123,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "pre-clean",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven clean lifecycle phase",
@@ -135,9 +132,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "clean",
-          ],
+          "command": "mvn clean",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -147,7 +143,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "process-resources",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven compile lifecycle phase",
@@ -156,9 +152,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "compile",
-          ],
+          "command": "mvn compile",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -168,7 +163,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "install",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven deploy lifecycle phase",
@@ -177,9 +172,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "deploy",
-          ],
+          "command": "mvn deploy",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -187,7 +181,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "forbiddenapis:check@verify-forbidden-apis": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -196,9 +190,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run forbiddenapis:check plugin goal",
         },
         "options": {
-          "goals": [
-            "forbiddenapis:check",
-          ],
+          "command": "mvn forbiddenapis:check",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -206,7 +199,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "formatter:format@default": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -215,9 +208,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run formatter:format plugin goal",
         },
         "options": {
-          "goals": [
-            "formatter:format",
-          ],
+          "command": "mvn formatter:format",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -227,7 +219,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "process-sources",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven generate-resources lifecycle phase",
@@ -236,9 +228,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "generate-resources",
-          ],
+          "command": "mvn generate-resources",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -248,7 +239,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "initialize",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven generate-sources lifecycle phase",
@@ -257,9 +248,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "generate-sources",
-          ],
+          "command": "mvn generate-sources",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -269,7 +259,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "process-test-sources",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven generate-test-resources lifecycle phase",
@@ -278,9 +268,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "generate-test-resources",
-          ],
+          "command": "mvn generate-test-resources",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -290,7 +279,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "process-classes",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven generate-test-sources lifecycle phase",
@@ -299,9 +288,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "generate-test-sources",
-          ],
+          "command": "mvn generate-test-sources",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -309,7 +297,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "impsort:sort@sort-imports": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -318,9 +306,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run impsort:sort plugin goal",
         },
         "options": {
-          "goals": [
-            "impsort:sort",
-          ],
+          "command": "mvn impsort:sort",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -330,7 +317,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "validate",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven initialize lifecycle phase",
@@ -339,9 +326,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "initialize",
-          ],
+          "command": "mvn initialize",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -351,7 +337,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "verify",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven install lifecycle phase",
@@ -360,9 +346,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "install",
-          ],
+          "command": "mvn install",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -372,7 +357,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "pre-integration-test",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven integration-test lifecycle phase",
@@ -381,9 +366,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "integration-test",
-          ],
+          "command": "mvn integration-test",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -391,7 +375,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-clean:clean": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -400,9 +384,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-clean:clean plugin goal",
         },
         "options": {
-          "goals": [
-            "clean:clean",
-          ],
+          "command": "mvn clean:clean",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -410,7 +393,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-clean:clean@default-clean": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -419,9 +402,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-clean:clean@default-clean plugin goal",
         },
         "options": {
-          "goals": [
-            "clean",
-          ],
+          "command": "mvn clean",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -429,7 +411,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-compiler:compile": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -438,9 +420,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-compiler:compile plugin goal",
         },
         "options": {
-          "goals": [
-            "compiler:compile",
-          ],
+          "command": "mvn compiler:compile",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -448,7 +429,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-compiler:compile@default-compile": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -457,9 +438,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-compiler:compile@default-compile plugin goal",
         },
         "options": {
-          "goals": [
-            "compile",
-          ],
+          "command": "mvn compile",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -467,7 +447,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-compiler:testCompile": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -476,9 +456,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-compiler:testCompile plugin goal",
         },
         "options": {
-          "goals": [
-            "compiler:testCompile",
-          ],
+          "command": "mvn compiler:testCompile",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -486,7 +465,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-compiler:testCompile@default-testCompile": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -495,9 +474,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-compiler:testCompile@default-testCompile plugin goal",
         },
         "options": {
-          "goals": [
-            "test-compile",
-          ],
+          "command": "mvn test-compile",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -505,7 +483,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-dependency:analyze": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -514,9 +492,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-dependency:analyze plugin goal",
         },
         "options": {
-          "goals": [
-            "dependency:analyze",
-          ],
+          "command": "mvn dependency:analyze",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -524,7 +501,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-dependency:copy-dependencies": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -533,9 +510,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-dependency:copy-dependencies plugin goal",
         },
         "options": {
-          "goals": [
-            "dependency:copy-dependencies",
-          ],
+          "command": "mvn dependency:copy-dependencies",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -543,7 +519,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-deploy:deploy": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -552,9 +528,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-deploy:deploy plugin goal",
         },
         "options": {
-          "goals": [
-            "deploy:deploy",
-          ],
+          "command": "mvn deploy:deploy",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -562,7 +537,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-deploy:deploy@default-deploy": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -571,9 +546,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-deploy:deploy@default-deploy plugin goal",
         },
         "options": {
-          "goals": [
-            "deploy",
-          ],
+          "command": "mvn deploy",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -581,7 +555,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-enforcer:enforce": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -590,9 +564,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-enforcer:enforce plugin goal",
         },
         "options": {
-          "goals": [
-            "enforcer:enforce",
-          ],
+          "command": "mvn enforcer:enforce",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -600,7 +573,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-enforcer:enforce@enforce": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -609,9 +582,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-enforcer:enforce@enforce plugin goal",
         },
         "options": {
-          "goals": [
-            "enforcer:enforce",
-          ],
+          "command": "mvn enforcer:enforce",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -619,7 +591,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-failsafe:integration-test": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -628,9 +600,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-failsafe:integration-test plugin goal",
         },
         "options": {
-          "goals": [
-            "failsafe:integration-test",
-          ],
+          "command": "mvn failsafe:integration-test",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -638,7 +609,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-failsafe:verify": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -647,9 +618,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-failsafe:verify plugin goal",
         },
         "options": {
-          "goals": [
-            "failsafe:verify",
-          ],
+          "command": "mvn failsafe:verify",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -657,7 +627,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-install:install": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -666,9 +636,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-install:install plugin goal",
         },
         "options": {
-          "goals": [
-            "install:install",
-          ],
+          "command": "mvn install:install",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -676,7 +645,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-install:install@default-install": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -685,9 +654,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-install:install@default-install plugin goal",
         },
         "options": {
-          "goals": [
-            "install",
-          ],
+          "command": "mvn install",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -695,7 +663,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-jar:jar": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -704,9 +672,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-jar:jar plugin goal",
         },
         "options": {
-          "goals": [
-            "jar:jar",
-          ],
+          "command": "mvn jar:jar",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -714,7 +681,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-jar:jar@default-jar": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -723,9 +690,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-jar:jar@default-jar plugin goal",
         },
         "options": {
-          "goals": [
-            "package",
-          ],
+          "command": "mvn package",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -733,7 +699,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-javadoc:jar": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -742,9 +708,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-javadoc:jar plugin goal",
         },
         "options": {
-          "goals": [
-            "javadoc:jar",
-          ],
+          "command": "mvn javadoc:jar",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -752,7 +717,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-javadoc:jar@attach-javadocs": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -761,9 +726,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-javadoc:jar@attach-javadocs plugin goal",
         },
         "options": {
-          "goals": [
-            "javadoc:jar",
-          ],
+          "command": "mvn javadoc:jar",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -771,7 +735,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-resources:resources": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -780,9 +744,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-resources:resources plugin goal",
         },
         "options": {
-          "goals": [
-            "resources:resources",
-          ],
+          "command": "mvn resources:resources",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -790,7 +753,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-resources:resources@default-resources": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -799,9 +762,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-resources:resources@default-resources plugin goal",
         },
         "options": {
-          "goals": [
-            "process-resources",
-          ],
+          "command": "mvn process-resources",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -809,7 +771,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-resources:testResources": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -818,9 +780,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-resources:testResources plugin goal",
         },
         "options": {
-          "goals": [
-            "resources:testResources",
-          ],
+          "command": "mvn resources:testResources",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -828,7 +789,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-resources:testResources@default-testResources": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -837,9 +798,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-resources:testResources@default-testResources plugin goal",
         },
         "options": {
-          "goals": [
-            "process-test-resources",
-          ],
+          "command": "mvn process-test-resources",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -847,7 +807,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-site:deploy@default-deploy": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -856,9 +816,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-site:deploy@default-deploy plugin goal",
         },
         "options": {
-          "goals": [
-            "site-deploy",
-          ],
+          "command": "mvn site-deploy",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -866,7 +825,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-site:site": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -875,9 +834,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-site:site plugin goal",
         },
         "options": {
-          "goals": [
-            "site:site",
-          ],
+          "command": "mvn site:site",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -885,7 +843,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-site:site@default-site": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -894,9 +852,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-site:site@default-site plugin goal",
         },
         "options": {
-          "goals": [
-            "site",
-          ],
+          "command": "mvn site",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -904,7 +861,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-source:jar": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -913,9 +870,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-source:jar plugin goal",
         },
         "options": {
-          "goals": [
-            "source:jar",
-          ],
+          "command": "mvn source:jar",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -923,7 +879,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-source:jar-no-fork": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -932,9 +888,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-source:jar-no-fork plugin goal",
         },
         "options": {
-          "goals": [
-            "source:jar-no-fork",
-          ],
+          "command": "mvn source:jar-no-fork",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -942,7 +897,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-source:jar-no-fork@attach-sources": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -951,9 +906,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-source:jar-no-fork@attach-sources plugin goal",
         },
         "options": {
-          "goals": [
-            "source:jar-no-fork",
-          ],
+          "command": "mvn source:jar-no-fork",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -961,7 +915,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-surefire:test": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -970,9 +924,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-surefire:test plugin goal",
         },
         "options": {
-          "goals": [
-            "surefire:test",
-          ],
+          "command": "mvn surefire:test",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -980,7 +933,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "maven-surefire:test@default-test": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -989,9 +942,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run maven-surefire:test@default-test plugin goal",
         },
         "options": {
-          "goals": [
-            "test",
-          ],
+          "command": "mvn test",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1001,7 +953,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "prepare-package",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven package lifecycle phase",
@@ -1010,9 +962,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "package",
-          ],
+          "command": "mvn package",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1022,7 +973,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "clean",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven post-clean lifecycle phase",
@@ -1031,9 +982,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "post-clean",
-          ],
+          "command": "mvn post-clean",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1043,7 +993,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "integration-test",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven post-integration-test lifecycle phase",
@@ -1052,9 +1002,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "post-integration-test",
-          ],
+          "command": "mvn post-integration-test",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1064,7 +1013,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "site",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven post-site lifecycle phase",
@@ -1073,9 +1022,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "post-site",
-          ],
+          "command": "mvn post-site",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1083,7 +1031,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "pre-clean": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven pre-clean lifecycle phase",
@@ -1092,9 +1040,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "pre-clean",
-          ],
+          "command": "mvn pre-clean",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1104,7 +1051,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "package",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven pre-integration-test lifecycle phase",
@@ -1113,9 +1060,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "pre-integration-test",
-          ],
+          "command": "mvn pre-integration-test",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1123,7 +1069,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "pre-site": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven pre-site lifecycle phase",
@@ -1132,9 +1078,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "pre-site",
-          ],
+          "command": "mvn pre-site",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1144,7 +1089,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "test",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven prepare-package lifecycle phase",
@@ -1153,9 +1098,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "prepare-package",
-          ],
+          "command": "mvn prepare-package",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1165,7 +1109,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "compile",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven process-classes lifecycle phase",
@@ -1174,9 +1118,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "process-classes",
-          ],
+          "command": "mvn process-classes",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1186,7 +1129,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "generate-resources",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven process-resources lifecycle phase",
@@ -1195,9 +1138,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "process-resources",
-          ],
+          "command": "mvn process-resources",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1207,7 +1149,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "generate-sources",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven process-sources lifecycle phase",
@@ -1216,9 +1158,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "process-sources",
-          ],
+          "command": "mvn process-sources",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1228,7 +1169,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "test-compile",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven process-test-classes lifecycle phase",
@@ -1237,9 +1178,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "process-test-classes",
-          ],
+          "command": "mvn process-test-classes",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1249,7 +1189,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "generate-test-resources",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven process-test-resources lifecycle phase",
@@ -1258,9 +1198,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "process-test-resources",
-          ],
+          "command": "mvn process-test-resources",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1270,7 +1209,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "generate-test-sources",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven process-test-sources lifecycle phase",
@@ -1279,9 +1218,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "process-test-sources",
-          ],
+          "command": "mvn process-test-sources",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1289,7 +1227,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "quarkus-extension:build": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -1298,9 +1236,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run quarkus-extension:build plugin goal",
         },
         "options": {
-          "goals": [
-            "quarkus-extension:build",
-          ],
+          "command": "mvn quarkus-extension:build",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1308,7 +1245,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "quarkus-extension:dev": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -1317,9 +1254,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run quarkus-extension:dev plugin goal",
         },
         "options": {
-          "goals": [
-            "quarkus-extension:dev",
-          ],
+          "command": "mvn quarkus-extension:dev",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1327,7 +1263,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "quarkus-extension:extension-descriptor@generate-extension-descriptor": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -1336,9 +1272,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run quarkus-extension:extension-descriptor@generate-extension-descriptor plugin goal",
         },
         "options": {
-          "goals": [
-            "quarkus-extension:extension-descriptor",
-          ],
+          "command": "mvn quarkus-extension:extension-descriptor",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1346,7 +1281,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "quarkus:build": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -1355,9 +1290,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run quarkus:build plugin goal",
         },
         "options": {
-          "goals": [
-            "quarkus:build",
-          ],
+          "command": "mvn quarkus:build",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1365,7 +1299,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "quarkus:dev": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "technologies": [
@@ -1374,9 +1308,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           "type": "Run quarkus:dev plugin goal",
         },
         "options": {
-          "goals": [
-            "quarkus:dev",
-          ],
+          "command": "mvn quarkus:dev",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1386,7 +1319,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "pre-site",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven site lifecycle phase",
@@ -1395,9 +1328,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "site",
-          ],
+          "command": "mvn site",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1407,7 +1339,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "post-site",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven site-deploy lifecycle phase",
@@ -1416,9 +1348,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "site-deploy",
-          ],
+          "command": "mvn site-deploy",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1428,7 +1359,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "process-test-classes",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven test lifecycle phase",
@@ -1437,9 +1368,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "test",
-          ],
+          "command": "mvn test",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1449,7 +1379,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "process-test-resources",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven test-compile lifecycle phase",
@@ -1458,9 +1388,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "test-compile",
-          ],
+          "command": "mvn test-compile",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1468,7 +1397,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
       "validate": {
         "configurations": {},
         "dependsOn": [],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven validate lifecycle phase",
@@ -1477,9 +1406,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "validate",
-          ],
+          "command": "mvn validate",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
@@ -1489,7 +1417,7 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
         "dependsOn": [
           "post-integration-test",
         ],
-        "executor": "@nx-quarkus/maven-plugin:maven-batch",
+        "executor": "nx:run-commands",
         "inputs": [],
         "metadata": {
           "description": "Run Maven verify lifecycle phase",
@@ -1498,9 +1426,8 @@ exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quark
           ],
         },
         "options": {
-          "goals": [
-            "verify",
-          ],
+          "command": "mvn verify",
+          "cwd": "core/runtime",
         },
         "outputs": [],
         "parallelism": true,
