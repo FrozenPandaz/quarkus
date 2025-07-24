@@ -127,6 +127,12 @@ class MavenPluginIntrospectionService(
         result.requiresDependencyResolution = mojoDescriptor.dependencyResolutionRequired
         result.requiresProject = mojoDescriptor.isProjectRequired
         
+        // Analyze Maven API properties to determine cacheability
+        result.isThreadSafe = mojoDescriptor.isThreadSafe
+        result.isOnlineRequired = mojoDescriptor.isOnlineRequired
+        result.isAggregator = mojoDescriptor.isAggregator
+        result.alwaysExecute = mojoDescriptor.alwaysExecute()
+        
         // Analyze parameters to understand file/directory requirements
         mojoDescriptor.parameters?.forEach { parameter ->
             analyzeParameter(parameter, result)
@@ -135,7 +141,10 @@ class MavenPluginIntrospectionService(
         if (verbose) {
             log.debug("MojoDescriptor analysis: ${mojoDescriptor.parameters?.size ?: 0} parameters, " +
                      "requires project: ${mojoDescriptor.isProjectRequired}, " +
-                     "dependency resolution: ${mojoDescriptor.dependencyResolutionRequired}")
+                     "dependency resolution: ${mojoDescriptor.dependencyResolutionRequired}, " +
+                     "thread safe: ${mojoDescriptor.isThreadSafe}, " +
+                     "online required: ${mojoDescriptor.isOnlineRequired}, " +
+                     "aggregator: ${mojoDescriptor.isAggregator}")
         }
     }
     
@@ -356,6 +365,12 @@ class MavenPluginIntrospectionService(
         var requiresDependencyResolution: String? = null
         var requiresProject: Boolean = false
         
+        // Maven API cacheability properties
+        var isThreadSafe: Boolean = false
+        var isOnlineRequired: Boolean = false
+        var isAggregator: Boolean = false
+        var alwaysExecute: Boolean = false
+        
         // Behavior flags
         var processesSources: Boolean = false
         var testRelated: Boolean = false
@@ -383,6 +398,24 @@ class MavenPluginIntrospectionService(
         // Java-style getter methods for compatibility
         fun processesSources(): Boolean = this.processesSources
         fun isRequiresProject(): Boolean = this.requiresProject
+        
+        /**
+         * Determine if this goal should be cacheable based on Maven API properties
+         */
+        fun isCacheable(): Boolean {
+            return when {
+                // Goals that should never be cached
+                alwaysExecute -> false  // @Mojo(alwaysExecute = true)
+                isOnlineRequired -> false  // Requires network access
+                isAggregator -> false  // Complex multi-module operations
+                
+                // Goals that are good caching candidates
+                isThreadSafe -> true  // @Mojo(threadSafe = true) - well-behaved goals
+                
+                // Default to false for safety - only cache when explicitly marked as thread-safe
+                else -> false
+            }
+        }
         
         /**
          * Convert to GoalBehavior for compatibility with existing code

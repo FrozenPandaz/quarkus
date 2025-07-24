@@ -3,6 +3,10 @@ import org.apache.maven.project.MavenProject
 import org.apache.maven.plugin.logging.Log
 import org.apache.maven.model.Plugin
 import org.apache.maven.model.PluginExecution
+import org.apache.maven.lifecycle.LifecycleExecutor
+import org.apache.maven.lifecycle.MavenExecutionPlan
+import org.apache.maven.plugin.MojoExecution
+import org.apache.maven.plugin.descriptor.MojoDescriptor
 import model.*
 
 /**
@@ -13,7 +17,8 @@ class SimpleTargetGenerator(
     private val session: MavenSession,
     private val reactorProjects: List<MavenProject>,
     private val verbose: Boolean,
-    private val log: Log
+    private val log: Log,
+    private val lifecycleExecutor: LifecycleExecutor?
 ) {
     
     /**
@@ -33,7 +38,7 @@ class SimpleTargetGenerator(
         logInfo("Generating comprehensive targets for project: ${project.artifactId}")
         
         // 1. Generate all Maven lifecycle phases
-        targets.putAll(generateLifecyclePhases(projectRoot))
+        targets.putAll(generateLifecyclePhases(projectRoot, project))
         
         // 2. Generate plugin goal targets from build plugins
         targets.putAll(generatePluginGoalTargets(project, projectRoot))
@@ -53,7 +58,7 @@ class SimpleTargetGenerator(
     /**
      * Generate all Maven lifecycle phase targets
      */
-    private fun generateLifecyclePhases(projectRoot: String): Map<String, TargetConfiguration> {
+    private fun generateLifecyclePhases(projectRoot: String, project: MavenProject): Map<String, TargetConfiguration> {
         val targets = mutableMapOf<String, TargetConfiguration>()
         
         // Default lifecycle phases
@@ -86,6 +91,8 @@ class SimpleTargetGenerator(
                 ).apply {
                     technologies = mutableListOf("maven")
                 }
+                // Add Maven API-based cacheability
+                cache = if (shouldEnableCaching(phase, project)) true else null
             }
             targets[phase] = target
         }
@@ -184,7 +191,7 @@ class SimpleTargetGenerator(
         }
         
         // Create targets from the comprehensive map  
-        targets.putAll(createTargetsFromMap(commonTargets.toMap(), projectRoot))
+        targets.putAll(createTargetsFromMap(commonTargets.toMap(), projectRoot, project))
         
         // Check if this is a Quarkus extension project and add extension-specific goals
         if (isQuarkusExtensionProject(project)) {
@@ -193,24 +200,24 @@ class SimpleTargetGenerator(
                 "quarkus-extension:build" to "mvn quarkus-extension:build",
                 "quarkus-extension:dev" to "mvn quarkus-extension:dev"
             )
-            targets.putAll(createTargetsFromMap(extensionTargets, projectRoot))
+            targets.putAll(createTargetsFromMap(extensionTargets, projectRoot, project))
         }
         
         // Check for specific project patterns and add appropriate plugin goals
         if (hasFormatterPlugin(project)) {
-            targets["formatter:format@default"] = createTarget("mvn formatter:format", projectRoot, "Run formatter:format plugin goal")
+            targets["formatter:format@default"] = createTarget("mvn formatter:format", projectRoot, "Run formatter:format plugin goal", "format", project)
         }
         
         if (hasImpsortPlugin(project)) {
-            targets["impsort:sort@sort-imports"] = createTarget("mvn impsort:sort", projectRoot, "Run impsort:sort plugin goal")
+            targets["impsort:sort@sort-imports"] = createTarget("mvn impsort:sort", projectRoot, "Run impsort:sort plugin goal", "sort", project)
         }
         
         if (hasBuildNumberPlugin(project)) {
-            targets["buildnumber:create@get-scm-revision"] = createTarget("mvn buildnumber:create", projectRoot, "Run buildnumber:create plugin goal")
+            targets["buildnumber:create@get-scm-revision"] = createTarget("mvn buildnumber:create", projectRoot, "Run buildnumber:create plugin goal", "create", project)
         }
         
         if (hasForbiddenApisPlugin(project)) {
-            targets["forbiddenapis:check@verify-forbidden-apis"] = createTarget("mvn forbiddenapis:check", projectRoot, "Run forbiddenapis:check plugin goal") 
+            targets["forbiddenapis:check@verify-forbidden-apis"] = createTarget("mvn forbiddenapis:check", projectRoot, "Run forbiddenapis:check plugin goal", "check", project) 
         }
         
         logInfo("Generated ${targets.size} plugin goal targets for ${project.artifactId}")
@@ -220,16 +227,18 @@ class SimpleTargetGenerator(
     /**
      * Create targets from a map of target names to commands
      */
-    private fun createTargetsFromMap(targetMap: Map<String, String>, projectRoot: String): Map<String, TargetConfiguration> {
+    private fun createTargetsFromMap(targetMap: Map<String, String>, projectRoot: String, project: MavenProject): Map<String, TargetConfiguration> {
         return targetMap.mapValues { (targetName, command) ->
-            createTarget(command, projectRoot, "Run $targetName plugin goal")
+            // Extract goal name from target name (e.g., "maven-clean:clean" -> "clean")
+            val goalName = if (targetName.contains(":")) targetName.split(":").last() else targetName
+            createTarget(command, projectRoot, "Run $targetName plugin goal", goalName, project)
         }
     }
     
     /**
      * Create a single target configuration
      */
-    private fun createTarget(command: String, projectRoot: String, description: String): TargetConfiguration {
+    private fun createTarget(command: String, projectRoot: String, description: String, goalName: String? = null, project: MavenProject? = null): TargetConfiguration {
         return TargetConfiguration("nx:run-commands").apply {
             options = mutableMapOf(
                 "command" to command,
@@ -239,6 +248,8 @@ class SimpleTargetGenerator(
             metadata = TargetMetadata(description).apply {
                 technologies = mutableListOf("maven")
             }
+            // Add Maven API-based cacheability for plugin goals
+            cache = if (goalName != null && project != null && shouldEnableCaching(goalName, project)) true else null
         }
     }
     
@@ -340,6 +351,67 @@ class SimpleTargetGenerator(
     }
     
     
+    /**
+     * Determine if a goal should be cacheable based on Maven API properties
+     */
+    private fun shouldEnableCaching(goal: String, project: MavenProject): Boolean {
+        if (lifecycleExecutor == null) {
+            // Fallback to basic heuristics if lifecycle executor not available
+            return isCleanPhase(goal) || isCompilationGoal(goal)
+        }
+        
+        try {
+            // Try to get execution plan for the goal
+            val executionPlan = lifecycleExecutor.calculateExecutionPlan(session, goal)
+            
+            // Look for the mojo execution that matches our goal
+            val mojoExecution = executionPlan.mojoExecutions.find { mojoExec ->
+                mojoExec.goal == goal || "${mojoExec.plugin.artifactId}:${mojoExec.goal}" == goal
+            }
+            
+            if (mojoExecution != null) {
+                val mojoDescriptor = mojoExecution.mojoDescriptor
+                
+                if (verbose) {
+                    log.info("[SimpleTargetGenerator] Maven API indicates goal '$goal' properties: " +
+                            "threadSafe=${mojoDescriptor.isThreadSafe}, " +
+                            "onlineRequired=${mojoDescriptor.isOnlineRequired}, " +
+                            "aggregator=${mojoDescriptor.isAggregator}")
+                }
+                
+                // Use same logic as complex analyzer
+                return when {
+                    mojoDescriptor.alwaysExecute() -> false  // Always execute goals shouldn't be cached
+                    mojoDescriptor.isOnlineRequired -> false  // Network-dependent goals shouldn't be cached
+                    mojoDescriptor.isAggregator -> false  // Aggregator goals shouldn't be cached
+                    mojoDescriptor.isThreadSafe -> true  // Thread-safe goals are good for caching
+                    else -> false  // Default to false for safety
+                }
+            }
+        } catch (e: Exception) {
+            if (verbose) {
+                log.info("[SimpleTargetGenerator] Maven API introspection failed for goal '$goal', using fallback: ${e.message}")
+            }
+        }
+        
+        // Fallback to basic heuristics
+        return isCleanPhase(goal) || isCompilationGoal(goal)
+    }
+    
+    /**
+     * Check if goal is a clean phase (known to be cacheable)
+     */
+    private fun isCleanPhase(goal: String): Boolean {
+        return goal in listOf("clean", "pre-clean", "post-clean") || goal.contains("clean:clean")
+    }
+    
+    /**
+     * Check if goal is a compilation goal (likely cacheable)
+     */
+    private fun isCompilationGoal(goal: String): Boolean {
+        return goal.contains("compile") || goal.contains("resources") || goal.contains("jar")
+    }
+
     /**
      * Generate basic targets as fallback
      */

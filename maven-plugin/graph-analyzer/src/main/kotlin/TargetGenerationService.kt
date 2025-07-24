@@ -16,8 +16,11 @@ class TargetGenerationService(
     private val log: Log?,
     private val verbose: Boolean,
     private val session: MavenSession,
-    private val executionPlanAnalysisService: ExecutionPlanAnalysisService
+    private val executionPlanAnalysisService: ExecutionPlanAnalysisService,
+    private val pluginIntrospectionService: MavenPluginIntrospectionService?
 ) {
+
+    private var currentProject: MavenProject? = null
 
     private val dynamicGoalAnalysis = DynamicGoalAnalysisService(
         session, 
@@ -44,6 +47,9 @@ class TargetGenerationService(
         phaseDependencies: Map<String, List<Any>>
     ): Map<String, TargetConfiguration> {
         requireNotNull(project) { "Project cannot be null" }
+        
+        // Set current project for Maven API-based cacheability analysis
+        this.currentProject = project
 
         val targets = linkedMapOf<String, TargetConfiguration>()
 
@@ -503,6 +509,31 @@ class TargetGenerationService(
         if (verbose) {
             log?.info("DEBUG: shouldEnableCaching called with goal: '$goal'")
         }
+        
+        // Try to use Maven API-based introspection first
+        val project = currentProject
+        if (pluginIntrospectionService != null && project != null) {
+            try {
+                val introspectionResult = pluginIntrospectionService.analyzeGoal(goal, project)
+                if (introspectionResult != null) {
+                    val cacheableFromMaven = introspectionResult.isCacheable()
+                    if (verbose) {
+                        log?.info("DEBUG: Maven API indicates goal '$goal' is cacheable: $cacheableFromMaven " +
+                                "(threadSafe=${introspectionResult.isThreadSafe}, " +
+                                "onlineRequired=${introspectionResult.isOnlineRequired}, " +
+                                "aggregator=${introspectionResult.isAggregator}, " +
+                                "alwaysExecute=${introspectionResult.alwaysExecute})")
+                    }
+                    return cacheableFromMaven
+                }
+            } catch (e: Exception) {
+                if (verbose) {
+                    log?.info("DEBUG: Maven API introspection failed for goal '$goal', falling back to pattern matching: ${e.message}")
+                }
+            }
+        }
+        
+        // Fallback to existing pattern-based logic for compatibility
         return when {
             // Build and compilation goals - always cacheable
             goal.endsWith(":compile") || goal == "compile" -> true

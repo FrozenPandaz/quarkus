@@ -2,9 +2,11 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import model.*
 import org.apache.maven.execution.MavenSession
+import org.apache.maven.lifecycle.LifecycleExecutor
 import org.apache.maven.plugin.AbstractMojo
 import org.apache.maven.plugin.MojoExecutionException
 import org.apache.maven.plugin.MojoFailureException
+import org.apache.maven.plugins.annotations.Component
 import org.apache.maven.plugins.annotations.Mojo
 import org.apache.maven.plugins.annotations.Parameter
 import org.apache.maven.plugins.annotations.ResolutionScope
@@ -25,6 +27,9 @@ class SimpleAnalyzerMojo : AbstractMojo() {
     
     @Parameter(defaultValue = "\${reactorProjects}", readonly = true, required = true)
     private lateinit var reactorProjects: List<MavenProject>
+    
+    @Component
+    private lateinit var lifecycleExecutor: LifecycleExecutor
     
     @Parameter(property = "nx.outputFile")
     private var outputFile: String? = null
@@ -50,7 +55,7 @@ class SimpleAnalyzerMojo : AbstractMojo() {
             val createDependenciesGenerator = CreateDependenciesGenerator(session, reactorProjects, verbose, log)
             
             // Generate create nodes results with comprehensive target generation
-            val targetGenerator = SimpleTargetGenerator(session, reactorProjects, verbose, log)
+            val targetGenerator = SimpleTargetGenerator(session, reactorProjects, verbose, log, lifecycleExecutor)
             val createNodesResults = createNodesResultGenerator.generateCreateNodesResults { projectConfig ->
                 // Generate comprehensive targets (phases + plugin goals) using run-commands
                 targetGenerator.generateAllTargets(projectConfig)

@@ -96,7 +96,10 @@ class NxAnalyzerMojo : AbstractMojo() {
         // Pre-analyze all projects upfront to avoid performance bottlenecks during dependency analysis
         executionPlanAnalysisService.preAnalyzeAllProjects(reactorProjects)
         
-        targetGenerationService = TargetGenerationService(log, isVerbose(), session, executionPlanAnalysisService)
+        // Create plugin introspection service for Maven API-based cacheability analysis
+        val pluginIntrospectionService = MavenPluginIntrospectionService(session, lifecycleExecutor, log, isVerbose())
+        
+        targetGenerationService = TargetGenerationService(log, isVerbose(), session, executionPlanAnalysisService, pluginIntrospectionService)
         targetGroupService = TargetGroupService(executionPlanAnalysisService)
         targetDependencyService = TargetDependencyService(log, isVerbose(), executionPlanAnalysisService)
     }
