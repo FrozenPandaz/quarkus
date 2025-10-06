@@ -1,0 +1,8 @@
+{
+  "installation": {
+    "version": "0.0.0-pr-32947-aa25f06"
+  },
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "nxCloudUrl": "https://staging.nx.app",
+  "nxCloudId": "6851e8640ed81802ffc6674f"
+}
