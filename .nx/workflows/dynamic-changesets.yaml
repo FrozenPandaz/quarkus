@@ -1,0 +1,14 @@
+distribute-on:
+  default: 2 linux-large
+assignment-rules:
+  - targets:
+      - '*'
+    run-on:
+      - agent: linux-large
+        parallelism: 3
+
+
+
+
+
+

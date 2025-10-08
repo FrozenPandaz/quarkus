@@ -225,6 +225,8 @@ jobs:
           fetch-depth: 0
       - name: Add quarkusio remote
         run: git remote show quarkusio &> /dev/null || git remote add quarkusio https://github.com/quarkusio/quarkus.git
+      - name: Start CI run
+        run: ./nx start-ci-run --distribute-on="./.nx/workflows/dynamic-changesets.yaml" --stop-agents-after="install-ci"
       - name: Reclaim Disk Space
         run: .github/ci-prerequisites.sh
       - name: Set up JDK 17
