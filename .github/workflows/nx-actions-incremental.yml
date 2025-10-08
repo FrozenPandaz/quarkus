@@ -274,9 +274,9 @@ jobs:
           add-job-summary: false
           develocity-access-key: ${{ secrets.GRADLE_ENTERPRISE_ACCESS_KEY }}
           develocity-token-expiry: 6
-      - name: Build quarkus-maven-plugin
+      - name: Build Maven plugins
         run: |
-          ./mvnw -T1C $COMMON_MAVEN_ARGS clean install -DskipTests -DskipITs -Dinvoker.skip -pl devtools/maven -am
+          ./mvnw -T1C $COMMON_MAVEN_ARGS clean install -DskipTests -DskipITs -Dinvoker.skip -pl devtools/maven,devtools/config-doc-maven-plugin -am
       - name: Build
         env:
           CAPTURE_BUILD_SCAN: true
