@@ -7,13 +7,17 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
+import java.util.stream.Collectors;
 
 import org.jboss.logging.Logger;
 
@@ -68,10 +72,26 @@ public abstract class AbstractJarBuilder<T extends BuildItem> implements JarBuil
         this.generatedClasses = generatedClasses;
         this.generatedResources = generatedResources;
         this.removedArtifactKeys = removedArtifactKeys;
+
+        checkConsistency(generatedClasses);
     }
 
-    protected static ArchiveCreator newArchiveCreator(Path archivePath, PackageConfig config) throws IOException {
-        return new ZipFileSystemArchiveCreator(archivePath, config.jar().compress());
+    private static void checkConsistency(List<GeneratedClassBuildItem> generatedClasses) {
+        Map<String, Long> generatedClassOccurrences = generatedClasses.stream()
+                .sorted(Comparator.comparing(GeneratedClassBuildItem::binaryName))
+                .collect(Collectors.groupingBy(GeneratedClassBuildItem::binaryName, Collectors.counting()));
+        StringBuilder duplicates = new StringBuilder();
+        for (Entry<String, Long> generatedClassOccurrence : generatedClassOccurrences.entrySet()) {
+            if (generatedClassOccurrence.getValue() < 2) {
+                continue;
+            }
+            duplicates.append("- ").append(generatedClassOccurrence.getKey()).append(": ")
+                    .append(generatedClassOccurrence.getValue()).append("\n");
+        }
+        if (!duplicates.isEmpty()) {
+            throw new IllegalStateException(
+                    "Multiple GeneratedClassBuildItem were produced for the same classes:\n\n" + duplicates);
+        }
     }
 
     /**
@@ -86,6 +106,7 @@ public abstract class AbstractJarBuilder<T extends BuildItem> implements JarBuil
             Map<String, List<byte[]>> services,
             Predicate<String> ignoredEntriesPredicate) throws IOException {
         try {
+            Map<String, Path> pathsToCopy = new TreeMap<>();
             archive.accept(tree -> {
                 tree.walk(new PathVisitor() {
                     @Override
@@ -95,32 +116,35 @@ public abstract class AbstractJarBuilder<T extends BuildItem> implements JarBuil
                         if (relativePath.isEmpty() || ignoredEntriesPredicate.test(relativePath)) {
                             return;
                         }
-                        try {
-                            if (Files.isDirectory(visit.getPath())) {
-                                archiveCreator.addDirectory(relativePath);
-                            } else {
-                                if (relativePath.startsWith("META-INF/services/") && relativePath.length() > 18
-                                        && services != null) {
-                                    final byte[] content;
-                                    try {
-                                        content = Files.readAllBytes(visit.getPath());
-                                    } catch (IOException e) {
-                                        throw new UncheckedIOException(e);
-                                    }
-                                    services.computeIfAbsent(relativePath, (u) -> new ArrayList<>()).add(content);
-                                } else if (!relativePath.equals("META-INF/INDEX.LIST")) {
-                                    //TODO: auto generate INDEX.LIST
-                                    //this may have implications for Camel though, as they change the layout
-                                    //also this is only really relevant for the thin jar layout
-                                    archiveCreator.addFileIfNotExists(visit.getPath(), relativePath);
+                        if (Files.isDirectory(visit.getPath())) {
+                            pathsToCopy.put(relativePath, visit.getPath());
+                        } else {
+                            if (relativePath.startsWith("META-INF/services/") && relativePath.length() > 18
+                                    && services != null) {
+                                final byte[] content;
+                                try {
+                                    content = Files.readAllBytes(visit.getPath());
+                                } catch (IOException e) {
+                                    throw new UncheckedIOException(e);
                                 }
+                                services.computeIfAbsent(relativePath, (u) -> new ArrayList<>()).add(content);
+                            } else if (!relativePath.equals("META-INF/INDEX.LIST")) {
+                                //TODO: auto generate INDEX.LIST
+                                //this may have implications for Camel though, as they change the layout
+                                //also this is only really relevant for the thin jar layout
+                                pathsToCopy.put(relativePath, visit.getPath());
                             }
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
                         }
                     }
                 });
             });
+            for (Entry<String, Path> pathEntry : pathsToCopy.entrySet()) {
+                if (Files.isDirectory(pathEntry.getValue())) {
+                    archiveCreator.addDirectory(pathEntry.getKey());
+                } else {
+                    archiveCreator.addFileIfNotExists(pathEntry.getValue(), pathEntry.getKey());
+                }
+            }
         } catch (RuntimeException re) {
             final Throwable cause = re.getCause();
             if (cause instanceof IOException) {

@@ -31,13 +31,15 @@ public class CustomLauncherInterceptor implements LauncherDiscoveryListener, Lau
          * However, the Eclipse runner calls this twice, and the second invocation happens after discovery,
          * which means there is no one to unset the TCCL. That breaks integration tests, so we
          * need to add an ugly guard to not adjust the TCCL the second time round in that scenario.
+         *
+         * There is a similar issue with continuous testing, causing us to go into tests with the FacadeClassLoader set.
+         * That's not the right CL, so in those cases skip setting it.
+         *
          * We do not do any classloading dance for prod mode tests.
          */
-        boolean isEclipse = System.getProperty("sun.java.command") != null
-                && System.getProperty("sun.java.command").contains("JUnit5TestLoader");
-        boolean shouldSkipSettingTCCL = isEclipse && discoveryStarted;
+        boolean shouldSetTCCL = !discoveryStarted;
 
-        if (!isProductionModeTests() && !shouldSkipSettingTCCL) {
+        if (!isProductionModeTests() && shouldSetTCCL) {
             actuallyIntercept();
         }
 
@@ -85,6 +87,11 @@ public class CustomLauncherInterceptor implements LauncherDiscoveryListener, Lau
         if (!isProductionModeTests()) {
             initializeFacadeClassLoader();
             adjustContextClassLoader();
+
+            // we need to ensure that the Fork-Join pool will use our thread factory, otherwise the TCCL
+            // of the threads could be wrong
+            System.setProperty("java.util.concurrent.ForkJoinPool.common.threadFactory",
+                    "io.quarkus.bootstrap.forkjoin.QuarkusForkJoinWorkerThreadFactory");
         }
 
     }

@@ -8,7 +8,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
@@ -113,6 +112,7 @@ public class StartupActionImpl implements StartupAction {
     public RunningQuarkusApplication runMainClass(String... args) throws Exception {
         // Start dev services that weren't started in the augmentation phase
         ensureDevServicesStarted();
+        InitialConfigurator.DELAYED_HANDLER.buildTimeComplete();
 
         //first we hack around class loading in the fork join pool
         ForkJoinClassLoading.setForkJoinClassLoader(runtimeClassLoader);
@@ -223,6 +223,7 @@ public class StartupActionImpl implements StartupAction {
     public int runMainClassBlocking(String... args) throws Exception {
         // Start dev services that weren't started in the augmentation phase
         ensureDevServicesStarted();
+        InitialConfigurator.DELAYED_HANDLER.buildTimeComplete();
 
         //first we hack around class loading in the fork join pool
         ForkJoinClassLoading.setForkJoinClassLoader(runtimeClassLoader);
@@ -308,9 +309,6 @@ public class StartupActionImpl implements StartupAction {
 
             devServicesProperties.putAll(devServicesRegistry.getConfigForAllRunningServices());
         }
-        if (InitialConfigurator.DELAYED_HANDLER.isActivated()) {
-            InitialConfigurator.DELAYED_HANDLER.buildTimeComplete();
-        }
     }
 
     /**
@@ -319,6 +317,7 @@ public class StartupActionImpl implements StartupAction {
     public RunningQuarkusApplication run(String... args) throws Exception {
         // Start dev services that weren't started in the augmentation phase
         ensureDevServicesStarted();
+        InitialConfigurator.DELAYED_HANDLER.buildTimeComplete();
 
         //first we hack around class loading in the fork join pool
         ForkJoinClassLoading.setForkJoinClassLoader(runtimeClassLoader);
@@ -486,8 +485,7 @@ public class StartupActionImpl implements StartupAction {
                             }
                             File sourceFile = new File(debugPath, i.internalName() + ".zig");
                             sourceFile.getParentFile().mkdirs();
-                            Files.write(sourceFile.toPath(), i.getSource().getBytes(StandardCharsets.UTF_8),
-                                    StandardOpenOption.CREATE);
+                            Files.writeString(sourceFile.toPath(), i.getSource(), StandardOpenOption.CREATE);
                             log.infof("Wrote source %s", sourceFile.getAbsolutePath());
                         } else {
                             log.infof("Source not available: %s", i.binaryName());

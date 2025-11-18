@@ -179,6 +179,7 @@ public class ConfigResolver {
 
             String potentiallyMappedPath = path;
             boolean optional = discoveryConfigProperty.getType().isOptional();
+            boolean secret = discoveryConfigProperty.getType().isSecret();
 
             if (discoveryConfigProperty.getType().isMap()) {
                 // it is a leaf pass through map, it is always optional
@@ -208,7 +209,7 @@ public class ConfigResolver {
                     propertyPath, additionalPropertyPaths,
                     typeQualifiedName, typeSimplifiedName,
                     discoveryConfigProperty.getType().isMap(), discoveryConfigProperty.getType().isList(),
-                    optional, discoveryConfigProperty.getMapKey(),
+                    optional, secret, discoveryConfigProperty.getMapKey(),
                     discoveryConfigProperty.isUnnamedMapKey(), context.isWithinMap(),
                     discoveryConfigProperty.isConverted(),
                     discoveryConfigProperty.getType().isEnum(),
@@ -243,8 +244,7 @@ public class ConfigResolver {
     }
 
     public static String getType(TypeMirror typeMirror) {
-        if (typeMirror instanceof DeclaredType) {
-            DeclaredType declaredType = (DeclaredType) typeMirror;
+        if (typeMirror instanceof DeclaredType declaredType) {
             TypeElement typeElement = (TypeElement) declaredType.asElement();
             return typeElement.getQualifiedName().toString();
         }

@@ -91,7 +91,7 @@ import io.quarkus.deployment.builditem.StreamingLogHandlerBuildItem;
 import io.quarkus.deployment.builditem.SystemPropertyBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.NativeImageSystemPropertyBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
-import io.quarkus.deployment.builditem.nativeimage.RuntimeReinitializedClassBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.RuntimeInitializedClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ServiceProviderBuildItem;
 import io.quarkus.deployment.console.ConsoleInstalledBuildItem;
 import io.quarkus.deployment.console.QuarkusCommand;
@@ -232,12 +232,12 @@ public final class LoggingResourceProcessor {
 
     @BuildStep
     void miscSetup(
-            Consumer<RuntimeReinitializedClassBuildItem> runtimeInit,
+            Consumer<RuntimeInitializedClassBuildItem> runtimeInit,
             Consumer<NativeImageSystemPropertyBuildItem> systemProp,
             Consumer<ServiceProviderBuildItem> provider) {
-        runtimeInit.accept(new RuntimeReinitializedClassBuildItem(ConsoleHandler.class.getName()));
-        runtimeInit.accept(new RuntimeReinitializedClassBuildItem("io.smallrye.common.ref.References$ReaperThread"));
-        runtimeInit.accept(new RuntimeReinitializedClassBuildItem("io.smallrye.common.os.Process"));
+        runtimeInit.accept(new RuntimeInitializedClassBuildItem(ConsoleHandler.class.getName()));
+        runtimeInit.accept(new RuntimeInitializedClassBuildItem("io.smallrye.common.ref.References$ReaperThread"));
+        runtimeInit.accept(new RuntimeInitializedClassBuildItem("io.smallrye.common.os.Process"));
         systemProp
                 .accept(new NativeImageSystemPropertyBuildItem("java.util.logging.manager", "org.jboss.logmanager.LogManager"));
         provider.accept(
@@ -583,7 +583,9 @@ public final class LoggingResourceProcessor {
     private static void generateMinLevelCompute(Map<String, CategoryBuildTimeConfig> categories,
             Map<String, InheritableLevel> categoryMinLevelDefaults, Level rootMinLevel,
             ClassOutput output) {
-        Gizmo g = Gizmo.create(output);
+        Gizmo g = Gizmo.create(output)
+                .withDebugInfo(false)
+                .withParameters(false);
         g.class_(MIN_LEVEL_COMPUTE_CLASS_NAME, cc -> {
             cc.final_();
             cc.staticMethod("isMinLevelEnabled", mc -> {
@@ -611,7 +613,9 @@ public final class LoggingResourceProcessor {
     }
 
     private static void generateDefaultLoggerNode(ClassOutput output) {
-        Gizmo g = Gizmo.create(output);
+        Gizmo g = Gizmo.create(output)
+                .withDebugInfo(false)
+                .withParameters(false);
         g.class_(LOGGER_NODE_CLASS_NAME, cc -> {
             cc.final_();
             cc.addAnnotation(TargetClass.class, ac -> ac.add(TargetClass::className, "org.jboss.logmanager.LoggerNode"));
@@ -630,7 +634,10 @@ public final class LoggingResourceProcessor {
 
     private static void generateLogManagerLogger(ClassOutput output,
             MinLevelEnabledFunction isMinLevelEnabledFunction) {
-        Gizmo.create(output).class_(LOGMANAGER_LOGGER_CLASS_NAME, cc -> {
+        Gizmo gizmo = Gizmo.create(output)
+                .withDebugInfo(false)
+                .withParameters(false);
+        gizmo.class_(LOGMANAGER_LOGGER_CLASS_NAME, cc -> {
             cc.final_();
             This this_ = cc.this_();
             cc.addAnnotation(TargetClass.class, ac -> ac.add(TargetClass::value, org.jboss.logmanager.Logger.class));
@@ -668,7 +675,9 @@ public final class LoggingResourceProcessor {
     }
 
     private static void generateDefaultLoggingLogger(Level minLevel, ClassOutput output) {
-        Gizmo gizmo = Gizmo.create(output);
+        Gizmo gizmo = Gizmo.create(output)
+                .withDebugInfo(false)
+                .withParameters(false);
         gizmo.class_(LOGGING_LOGGER_CLASS_NAME, cc -> {
             cc.final_();
             cc.addAnnotation(TargetClass.class, ac -> ac.add(TargetClass::className, "org.jboss.logging.Logger"));

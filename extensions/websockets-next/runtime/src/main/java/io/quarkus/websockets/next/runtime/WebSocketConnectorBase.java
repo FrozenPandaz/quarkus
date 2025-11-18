@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -42,6 +43,10 @@ abstract class WebSocketConnectorBase<THIS extends WebSocketConnectorBase<THIS>>
     // mutable state
 
     protected URI baseUri;
+
+    protected WebSocketConnectOptions customWebSocketConnectOptions;
+
+    protected WebSocketClientOptions customWebSocketClientOptions;
 
     protected final Map<String, String> pathParams;
 
@@ -83,9 +88,15 @@ abstract class WebSocketConnectorBase<THIS extends WebSocketConnectorBase<THIS>>
         this.path = "";
         this.pathParamNames = Set.of();
         this.userData = new HashMap<>();
+        this.customWebSocketConnectOptions = null;
+        this.customWebSocketClientOptions = null;
     }
 
     public THIS baseUri(URI baseUri) {
+        if (!isSecure(baseUri) && !isNotSecure(baseUri)) {
+            throw new IllegalArgumentException(
+                    String.format("[%s] is not a valid scheme in the base URI %s", baseUri.getScheme(), baseUri));
+        }
         this.baseUri = Objects.requireNonNull(baseUri);
         return self();
     }
@@ -170,7 +181,12 @@ abstract class WebSocketConnectorBase<THIS extends WebSocketConnectorBase<THIS>>
     }
 
     protected WebSocketClientOptions populateClientOptions() {
-        WebSocketClientOptions clientOptions = new WebSocketClientOptions();
+        final WebSocketClientOptions clientOptions;
+        if (customWebSocketClientOptions != null) {
+            clientOptions = new WebSocketClientOptions(customWebSocketClientOptions);
+        } else {
+            clientOptions = new WebSocketClientOptions();
+        }
         if (config.offerPerMessageCompression()) {
             clientOptions.setTryUsePerMessageCompression(true);
             if (config.compressionLevel().isPresent()) {
@@ -210,7 +226,13 @@ abstract class WebSocketConnectorBase<THIS extends WebSocketConnectorBase<THIS>>
     }
 
     protected WebSocketConnectOptions newConnectOptions(URI serverEndpointUri) {
-        WebSocketConnectOptions connectOptions = new WebSocketConnectOptions()
+        final WebSocketConnectOptions connectOptions;
+        if (customWebSocketConnectOptions != null) {
+            connectOptions = new WebSocketConnectOptions(customWebSocketConnectOptions);
+        } else {
+            connectOptions = new WebSocketConnectOptions();
+        }
+        connectOptions
                 .setSsl(isSecure(serverEndpointUri))
                 .setHost(serverEndpointUri.getHost());
         if (serverEndpointUri.getPort() != -1) {
@@ -220,6 +242,10 @@ abstract class WebSocketConnectorBase<THIS extends WebSocketConnectorBase<THIS>>
             connectOptions.setPort(443);
         }
         return connectOptions;
+    }
+
+    protected boolean isNotSecure(URI uri) {
+        return "http".equals(uri.getScheme()) || "ws".equals(uri.getScheme());
     }
 
     protected boolean isSecure(URI uri) {
@@ -249,4 +275,15 @@ abstract class WebSocketConnectorBase<THIS extends WebSocketConnectorBase<THIS>>
         };
     }
 
+    public THIS customizeOptions(BiConsumer<WebSocketConnectOptions, WebSocketClientOptions> customizer) {
+        Objects.requireNonNull(customizer, "Options customizer must not be null");
+        if (customWebSocketClientOptions == null) {
+            customWebSocketClientOptions = new WebSocketClientOptions();
+        }
+        if (customWebSocketConnectOptions == null) {
+            customWebSocketConnectOptions = new WebSocketConnectOptions();
+        }
+        customizer.accept(customWebSocketConnectOptions, customWebSocketClientOptions);
+        return self();
+    }
 }

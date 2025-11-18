@@ -1,0 +1,14 @@
+{
+  "installation": {
+    "version": "22.1.0-rc.5",
+    "plugins": {
+      "@nx/maven": "22.1.0-rc.5"
+    }
+  },
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "nxCloudUrl": "https://staging.nx.app",
+  "nxCloudId": "6851e8640ed81802ffc6674f",
+  "plugins": [
+    "@nx/maven"
+  ]
+}

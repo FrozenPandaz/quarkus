@@ -44,6 +44,7 @@ import org.yaml.snakeyaml.Yaml;
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
 import io.quarkus.arc.deployment.BeanContainerBuildItem;
 import io.quarkus.arc.processor.BuiltinScope;
+import io.quarkus.arc.processor.DotNames;
 import io.quarkus.bootstrap.BootstrapConstants;
 import io.quarkus.deployment.Capabilities;
 import io.quarkus.deployment.Capability;
@@ -93,6 +94,7 @@ import io.quarkus.maven.dependency.GACT;
 import io.quarkus.maven.dependency.GACTV;
 import io.quarkus.maven.dependency.ResolvedDependency;
 import io.quarkus.qute.Qute;
+import io.quarkus.runtime.annotations.DevMCPEnableByDefault;
 import io.quarkus.runtime.annotations.JsonRpcDescription;
 import io.quarkus.runtime.annotations.JsonRpcUsage;
 import io.quarkus.runtime.annotations.Usage;
@@ -226,6 +228,7 @@ public class DevUIProcessor {
 
             Map<String, String> urlAndPath = new HashMap<>();
             Map<String, String> descriptions = new HashMap<>();
+            Map<String, String> mcpDefaultEnabled = new HashMap<>();
             Map<String, String> contentTypes = new HashMap<>();
 
             List<DevUIContent> content = staticContentBuildItem.getContent();
@@ -239,12 +242,16 @@ public class DevUIProcessor {
                 if (c.getDescriptions() != null && !c.getDescriptions().isEmpty()) {
                     descriptions.putAll(c.getDescriptions());
                 }
+                if (c.getMcpDefaultEnables() != null && !c.getMcpDefaultEnables().isEmpty()) {
+                    mcpDefaultEnabled.putAll(c.getMcpDefaultEnables());
+                }
+
                 if (c.getContentTypes() != null && !c.getContentTypes().isEmpty()) {
                     contentTypes.putAll(c.getContentTypes());
                 }
             }
             Handler<RoutingContext> buildTimeStaticHandler = recorder.buildTimeStaticHandler(beanContainer.getValue(), basepath,
-                    urlAndPath, descriptions, contentTypes);
+                    urlAndPath, descriptions, mcpDefaultEnabled, contentTypes);
 
             routeProducer.produce(
                     nonApplicationRootPathBuildItem.routeBuilder().route(DEVUI + SLASH_ALL)
@@ -362,6 +369,7 @@ public class DevUIProcessor {
         Map<String, RuntimeJsonRpcMethod> runtimeSubscriptionsMap = new HashMap<>();// All subscriptions to execute against the runtime classpath
 
         DotName descriptionAnnotation = DotName.createSimple(JsonRpcDescription.class);
+        DotName devMCPEnableByDefaultAnnotation = DotName.createSimple(DevMCPEnableByDefault.class);
 
         // Let's use the Jandex index to find all methods
         for (JsonRPCProvidersBuildItem jsonRPCProvidersBuildItem : jsonRPCProvidersBuildItems) {
@@ -381,7 +389,12 @@ public class DevUIProcessor {
                         Map<String, AbstractJsonRpcMethod.Parameter> parameters = new LinkedHashMap<>(); // Keep the order
                         for (int i = 0; i < method.parametersCount(); i++) {
                             String description = null;
+                            boolean required = true;
                             Type parameterType = method.parameterType(i);
+                            if (DotNames.OPTIONAL.equals(parameterType.name())) {
+                                required = false;
+                                parameterType = parameterType.asParameterizedType().arguments().get(0);
+                            }
                             AnnotationInstance jsonRpcDescriptionAnnotation = method.parameters().get(i)
                                     .annotation(descriptionAnnotation);
                             if (jsonRpcDescriptionAnnotation != null) {
@@ -392,7 +405,8 @@ public class DevUIProcessor {
                             }
                             Class<?> parameterClass = toClass(parameterType);
                             String parameterName = method.parameterName(i);
-                            parameters.put(parameterName, new AbstractJsonRpcMethod.Parameter(parameterClass, description));
+                            parameters.put(parameterName,
+                                    new AbstractJsonRpcMethod.Parameter(parameterClass, description, required));
                         }
 
                         // Look for @JsonRpcUsage annotation
@@ -409,6 +423,7 @@ public class DevUIProcessor {
 
                         // Look for @JsonRpcDescription annotation
                         String description = null;
+                        boolean mcpEnabledByDefault = false;
                         AnnotationInstance jsonRpcDescriptionAnnotation = method
                                 .annotation(descriptionAnnotation);
                         if (jsonRpcDescriptionAnnotation != null) {
@@ -417,13 +432,21 @@ public class DevUIProcessor {
                                 description = descriptionValue.asString();
                                 usage = Usage.devUIandDevMCP();
                             }
+
+                            AnnotationInstance devMCPEnableByDefaultAnnotationInstance = method
+                                    .annotation(devMCPEnableByDefaultAnnotation);
+                            if (devMCPEnableByDefaultAnnotationInstance != null) {
+                                mcpEnabledByDefault = true;
+                            }
                         } else {
                             usage = Usage.onlyDevUI();
                         }
 
                         RuntimeJsonRpcMethod runtimeJsonRpcMethod = new RuntimeJsonRpcMethod(methodName, description,
                                 parameters,
-                                usage, clazz,
+                                usage,
+                                mcpEnabledByDefault,
+                                clazz,
                                 method.hasAnnotation(Blocking.class), method.hasAnnotation(NonBlocking.class));
 
                         // Create list of available methods for the Javascript side.
@@ -529,9 +552,11 @@ public class DevUIProcessor {
         o.setMethodName(i.getMethodName());
         o.setDescription(i.getDescription());
         o.setUsage(List.copyOf(i.getUsage()));
+        o.setMcpEnabledByDefault(i.isMcpEnabledByDefault());
         if (i.hasParameters()) {
             for (Map.Entry<String, AbstractJsonRpcMethod.Parameter> ip : i.getParameters().entrySet()) {
-                o.addParameter(ip.getKey(), ip.getValue().getType(), ip.getValue().getDescription());
+                o.addParameter(ip.getKey(), ip.getValue().getType(), ip.getValue().getDescription(),
+                        ip.getValue().isRequired());
             }
         }
 
@@ -889,7 +914,6 @@ public class DevUIProcessor {
                     for (PageBuilder pageBuilder : footerPageBuilders) {
                         pageBuilder.namespace(deploymentOnlyExtension.getNamespace());
                         pageBuilder.extension(deploymentOnlyExtension.getName());
-                        pageBuilder.internal();
                         Page page = pageBuilder.build();
                         deploymentOnlyExtension.addFooterPage(page);
                     }
@@ -913,7 +937,6 @@ public class DevUIProcessor {
                     for (PageBuilder pageBuilder : settingPageBuilders) {
                         pageBuilder.namespace(deploymentOnlyExtension.getNamespace());
                         pageBuilder.extension(deploymentOnlyExtension.getName());
-                        pageBuilder.internal();
                         Page page = pageBuilder.build();
                         deploymentOnlyExtension.addSettingPage(page);
                     }
@@ -937,7 +960,6 @@ public class DevUIProcessor {
                     for (PageBuilder pageBuilder : unlistedPageBuilders) {
                         pageBuilder.namespace(deploymentOnlyExtension.getNamespace());
                         pageBuilder.extension(deploymentOnlyExtension.getName());
-                        pageBuilder.internal();
                         Page page = pageBuilder.build();
                         deploymentOnlyExtension.addUnlistedPage(page);
                     }
@@ -966,7 +988,7 @@ public class DevUIProcessor {
                         (existing, replacement) -> existing // keep the first one
                 ));
 
-        if (cardPageBuildItem != null) {
+        if (cardPageBuildItem != null && cardPageBuildItem.hasLibraryVersions()) {
             for (LibraryLink lib : cardPageBuildItem.getLibraryVersions()) {
                 String key = lib.getGroupId() + ":" + lib.getArtifactId();
                 String version = versionMap.get(key);

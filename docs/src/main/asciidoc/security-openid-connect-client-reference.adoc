@@ -553,6 +553,30 @@ or
 
 [source,java]
 ----
+import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+import io.quarkus.oidc.client.filter.OidcClientFilter;
+import io.smallrye.mutiny.Uni;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+
+@RegisterRestClient
+@Path("/")
+public interface InformationService {
+
+    @OidcClientFilter
+    @GET
+    Uni<String> getUserName();
+
+    @OidcClientFilter
+    @GET
+    Uni<String> getPublicInformation();
+}
+----
+
+or
+
+[source,java]
+----
 import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 import io.quarkus.oidc.client.reactive.filter.OidcClientRequestReactiveFilter;
@@ -654,6 +678,28 @@ public interface ProtectedResourceService {
 
     @GET
     String getUserName();
+}
+----
+
+or
+
+[source,java]
+----
+import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+import io.quarkus.oidc.client.filter.OidcClientFilter;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+
+@RegisterRestClient
+@Path("/")
+public interface InformationService {
+
+    @OidcClientFilter
+    @GET
+    String getUserName();
+
+    @GET
+    String getPublicInformation();
 }
 ----
 
@@ -768,7 +814,7 @@ You can also inject named `Tokens`, see <<named-oidc-clients,Inject named OidcCl
 Additionally, the `quarkus.oidc-client.refresh-token-time-skew` property can be used for a preemptive access token refreshment to avoid sending nearly expired access tokens that might cause HTTP 401 errors. For example, if this property is set to `3S` and the access token will expire in less than 3 seconds, then this token will be auto-refreshed.
 
 
-By default, OIDC client refreshes the token during the current request, when it detects that it has expired, or nearly expired if the [refresh token time skew](https://quarkus.io/guides/security-openid-connect-client-reference#quarkus-oidc-client_quarkus-oidc-client-refresh-token-time-skew) is configured.
+By default, OIDC client refreshes the token during the current request, when it detects that it has expired, or nearly expired if the xref:#quarkus-oidc-client_quarkus-oidc-client-refresh-token-time-skew[refresh token time skew] is configured.
 Performance critical applications may want to avoid having to wait for a possible token refresh during the incoming requests and configure an asynchronous token refresh instead, for example:
 
 [source,properties]
@@ -1117,7 +1163,7 @@ Add the following dependencies to your test project:
     <version>${wiremock.version}</version> // <1>
 </dependency>
 ----
-<1> Use a proper Wiremock version. All available versions can be found link:https://search.maven.org/artifact/org.wiremock/wiremock[here].
+<1> Use a proper Wiremock version. View all link:https://central.sonatype.com/artifact/org.wiremock/wiremock?smo=true[available WireMock versions] on Maven Central.
 
 Write a Wiremock-based `QuarkusTestResourceLifecycleManager`, for example:
 [source, java]
@@ -1393,6 +1439,29 @@ or
 
 [source,java]
 ----
+import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+import io.quarkus.oidc.token.propagation.common.AccessToken;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+
+@RegisterRestClient
+@Path("/")
+public interface InformationService {
+
+    @AccessToken
+    @GET
+    String getUserName();
+
+    @Path("/public")
+    @GET
+    String getPublicInformation();
+}
+----
+
+or
+
+[source,java]
+----
 import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 import io.quarkus.oidc.token.propagation.reactive.AccessTokenRequestReactiveFilter;
@@ -1482,6 +1551,30 @@ public interface ProtectedResourceService {
     String getUserName();
 }
 ----
+
+or
+
+[source,java]
+----
+import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+import io.quarkus.oidc.token.propagation.common.AccessToken;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+
+@RegisterRestClient
+@Path("/")
+public interface InformationService {
+
+    @AccessToken
+    @GET
+    String getUserName();
+
+    @Path("/public")
+    @GET
+    String getPublicInformation();
+}
+----
+
 or
 
 [source,java]
@@ -1620,6 +1713,7 @@ The OIDC client will also refresh expired access tokens.
 
 To configure which OIDC client should be used by the GraphQL client, select one of the configured OIDC clients with the `quarkus.oidc-client-graphql.client-name` property, for example:
 
+[source,properties]
 ----
 quarkus.oidc-client-graphql.client-name=oidc-client-for-graphql
 

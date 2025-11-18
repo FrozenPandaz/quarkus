@@ -28,6 +28,7 @@ import io.quarkus.deployment.builditem.nativeimage.NativeImageConfigBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.NativeImageSystemPropertyBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.ReflectiveFieldBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveMethodBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.RuntimeInitializedClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.UnsafeAccessedFieldBuildItem;
@@ -83,6 +84,7 @@ class NettyProcessor {
             NettyBuildTimeConfig config,
             BuildProducer<ReflectiveClassBuildItem> reflectiveClass,
             BuildProducer<ReflectiveMethodBuildItem> reflectiveMethods,
+            BuildProducer<ReflectiveFieldBuildItem> reflectiveFields,
             List<MinNettyAllocatorMaxOrderBuildItem> minMaxOrderBuildItems) {
 
         reflectiveMethods.produce(
@@ -96,6 +98,13 @@ class NettyProcessor {
         reflectiveMethods.produce(
                 new ReflectiveMethodBuildItem("Reflectively accessed through PlatformDependent0's static initializer",
                         "java.nio.DirectByteBuffer", "<init>", new String[] { long.class.getName(), int.class.getName() }));
+
+        reflectiveFields.produce(
+                new ReflectiveFieldBuildItem("Reflectively accessed through PlatformDependent0's static initializer",
+                        "java.nio.Bits", "UNALIGNED"));
+        reflectiveFields.produce(
+                new ReflectiveFieldBuildItem("Reflectively accessed through PlatformDependent0's static initializer",
+                        "java.nio.Bits", "MAX_MEMORY"));
 
         reflectiveClass.produce(ReflectiveClassBuildItem.builder("io.netty.channel.socket.nio.NioSocketChannel")
                 .build());
@@ -234,26 +243,26 @@ class NettyProcessor {
         // - io.netty.bitMode
         // - sun.arch.data.model
         // - com.ibm.vm.bitmode
-        builder.addRuntimeReinitializedClass("io.netty.util.internal.PlatformDependent")
+        builder.addRuntimeInitializedClass("io.netty.util.internal.PlatformDependent")
                 // Similarly for properties:
                 // - io.netty.noUnsafe
                 // - sun.misc.unsafe.memory.access
                 // - io.netty.tryUnsafe
                 // - org.jboss.netty.tryUnsafe
                 // - io.netty.tryReflectionSetAccessible
-                .addRuntimeReinitializedClass("io.netty.util.internal.PlatformDependent0")
+                .addRuntimeInitializedClass("io.netty.util.internal.PlatformDependent0")
                 // Runtime initialize classes to allow netty to use the field offset for testing if unsafe is available or not
                 // See https://github.com/quarkusio/quarkus/issues/47903#issuecomment-2890924970
-                .addRuntimeReinitializedClass("io.netty.util.AbstractReferenceCounted")
-                .addRuntimeReinitializedClass("io.netty.buffer.AbstractReferenceCountedByteBuf");
+                .addRuntimeInitializedClass("io.netty.util.AbstractReferenceCounted")
+                .addRuntimeInitializedClass("io.netty.buffer.AbstractReferenceCountedByteBuf");
 
         if (QuarkusClassLoader.isClassPresentAtRuntime("io.netty.buffer.UnpooledByteBufAllocator")) {
             // Runtime initialize due to the use of the io.netty.util.internal.PlatformDependent class
-            builder.addRuntimeReinitializedClass("io.netty.buffer.UnpooledByteBufAllocator")
-                    .addRuntimeReinitializedClass("io.netty.buffer.Unpooled")
+            builder.addRuntimeInitializedClass("io.netty.buffer.UnpooledByteBufAllocator")
+                    .addRuntimeInitializedClass("io.netty.buffer.Unpooled")
                     // Runtime initialize due to dependency on io.netty.buffer.Unpooled
-                    .addRuntimeReinitializedClass("io.netty.handler.codec.http.HttpObjectAggregator")
-                    .addRuntimeReinitializedClass("io.netty.handler.codec.ReplayingDecoderByteBuf")
+                    .addRuntimeInitializedClass("io.netty.handler.codec.http.HttpObjectAggregator")
+                    .addRuntimeInitializedClass("io.netty.handler.codec.ReplayingDecoderByteBuf")
                     // Runtime initialize to avoid embedding quite a few Strings in the image heap
                     .addRuntimeInitializedClass("io.netty.buffer.ByteBufUtil$HexUtil")
                     // Runtime initialize due to the use of the io.netty.util.internal.PlatformDependent class in the
@@ -284,7 +293,7 @@ class NettyProcessor {
             if (QuarkusClassLoader
                     .isClassPresentAtRuntime("org.jboss.resteasy.reactive.client.impl.multipart.QuarkusMultipartFormUpload")) {
                 // Runtime initialize due to dependency on io.netty.buffer.Unpooled
-                builder.addRuntimeReinitializedClass(
+                builder.addRuntimeInitializedClass(
                         "org.jboss.resteasy.reactive.client.impl.multipart.QuarkusMultipartFormUpload");
             }
         }

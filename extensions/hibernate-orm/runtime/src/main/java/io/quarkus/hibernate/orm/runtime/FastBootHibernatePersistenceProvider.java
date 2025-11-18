@@ -483,6 +483,13 @@ public final class FastBootHibernatePersistenceProvider implements PersistencePr
                     "When using offline mode with `quarkus.hibernate-orm.database.start-offline=true`, the schema management strategy `quarkus.hibernate-orm.schema-management.strategy` must be unset or set to `none`");
         }
 
+        // Pass extraPhysicalTableTypes configuration
+        Optional<String> extraPhysicalTableTypes = persistenceUnitConfig.schemaManagement().extraPhysicalTableTypes();
+        if (extraPhysicalTableTypes.isPresent()) {
+            String extraTableTypesStr = extraPhysicalTableTypes.get();
+            runtimeSettingsBuilder.put(AvailableSettings.EXTRA_PHYSICAL_TABLE_TYPES, extraTableTypesStr);
+        }
+
         runtimeSettingsBuilder.put(AvailableSettings.JAKARTA_HBM2DDL_DATABASE_ACTION,
                 persistenceUnitConfig.database().generation().generation()
                         .orElse(generationStrategy));
@@ -503,12 +510,12 @@ public final class FastBootHibernatePersistenceProvider implements PersistencePr
                 persistenceUnitConfig.scripts().generation().generation());
 
         if (persistenceUnitConfig.scripts().generation().createTarget().isPresent()) {
-            runtimeSettingsBuilder.put(AvailableSettings.HBM2DDL_SCRIPTS_CREATE_TARGET,
+            runtimeSettingsBuilder.put(AvailableSettings.JAKARTA_HBM2DDL_SCRIPTS_CREATE_TARGET,
                     persistenceUnitConfig.scripts().generation().createTarget().get());
         }
 
         if (persistenceUnitConfig.scripts().generation().dropTarget().isPresent()) {
-            runtimeSettingsBuilder.put(AvailableSettings.HBM2DDL_SCRIPTS_DROP_TARGET,
+            runtimeSettingsBuilder.put(AvailableSettings.JAKARTA_HBM2DDL_SCRIPTS_DROP_TARGET,
                     persistenceUnitConfig.scripts().generation().dropTarget().get());
         }
 

@@ -12,6 +12,7 @@ import java.util.Base64.Encoder;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -39,6 +40,7 @@ import io.quarkus.oidc.common.runtime.AbstractJsonObject;
 import io.quarkus.oidc.common.runtime.OidcCommonUtils;
 import io.quarkus.oidc.common.runtime.OidcConstants;
 import io.quarkus.oidc.runtime.OidcTenantConfig.Authentication;
+import io.quarkus.oidc.runtime.OidcTenantConfig.Authentication.CacheControl;
 import io.quarkus.oidc.runtime.OidcTenantConfig.Authentication.ResponseMode;
 import io.quarkus.oidc.runtime.OidcTenantConfig.Logout.LogoutMode;
 import io.quarkus.security.AuthenticationCompletionException;
@@ -907,7 +909,7 @@ public class CodeAuthenticationMechanism extends AbstractOidcAuthenticationMecha
                                                                 configContext.oidcConfig()));
                                             }
                                             if (finalUserQuery != null) {
-                                                finalUriWithoutQuery.append(!removeRedirectParams ? "" : "?");
+                                                finalUriWithoutQuery.append(!removeRedirectParams ? "&" : "?");
                                                 finalUriWithoutQuery.append(finalUserQuery);
                                             }
                                             String finalRedirectUri = finalUriWithoutQuery.toString();
@@ -1108,6 +1110,16 @@ public class CodeAuthenticationMechanism extends AbstractOidcAuthenticationMecha
                                             OidcUtils.createSessionCookie(context, configContext.oidcConfig(), sessionName,
                                                     cookieValue, sessionMaxAge);
                                         }
+
+                                        Set<CacheControl> cacheControl = configContext.oidcConfig().authentication()
+                                                .cacheControl()
+                                                .orElse(Set.of());
+                                        if (!cacheControl.isEmpty()) {
+                                            // Only 'no-store' is currently supported
+                                            context.response().putHeader(HttpHeaders.CACHE_CONTROL,
+                                                    cacheControl.iterator().next().directive());
+                                        }
+
                                         fireEvent(SecurityEvent.Type.OIDC_LOGIN, securityIdentity);
                                         return null;
                                     }
@@ -1363,16 +1375,19 @@ public class CodeAuthenticationMechanism extends AbstractOidcAuthenticationMecha
                         }
 
                         if (tokens.getIdToken() == null) {
-                            if (isIdTokenRequired(configContext) || !isInternalIdToken(currentIdToken, configContext)) {
-                                if (!autoRefresh) {
-                                    LOG.debugf(
-                                            "ID token is not returned in the refresh token grant response, re-authentication is required");
-                                    throw new AuthenticationFailedException(tokenMap(currentIdToken));
-                                } else {
-                                    // Auto-refresh is triggered while current ID token is still valid, continue using it.
-                                    tokens.setIdToken(currentIdToken);
-                                }
+                            if (autoRefresh) {
+                                // Auto-refresh is triggered while current ID token is still valid, continue using it.
+                                tokens.setIdToken(currentIdToken);
+                            } else if (isIdTokenRequired(configContext)) {
+                                LOG.debugf(
+                                        "Required ID token is not returned in the refresh token grant response, re-authentication is required");
+                                throw new AuthenticationFailedException(tokenMap(currentIdToken));
                             } else {
+                                if (!isInternalIdToken(currentIdToken, configContext)) {
+                                    LOG.debugf(
+                                            "OIDC provider issued an ID token after the authorization code flow completion but did not refresh it,"
+                                                    + " an internal ID token will be generated");
+                                }
                                 tokens.setIdToken(generateInternalIdToken(configContext, null, currentIdToken,
                                         tokens.getAccessTokenExpiresIn()));
                             }

@@ -15,23 +15,26 @@ public abstract class AbstractJsonRpcMethod {
     private String description;
     private Map<String, Parameter> parameters;
     private EnumSet<Usage> usage;
+    private boolean mcpEnabledByDefault = false;
 
     public AbstractJsonRpcMethod() {
     }
 
     public AbstractJsonRpcMethod(String methodName, String description,
-            EnumSet<Usage> usage) {
+            EnumSet<Usage> usage, boolean mcpEnabledByDefault) {
         this.methodName = methodName;
         this.description = description;
         this.usage = usage;
+        this.mcpEnabledByDefault = mcpEnabledByDefault;
     }
 
     public AbstractJsonRpcMethod(String methodName, String description, Map<String, Parameter> parameters,
-            EnumSet<Usage> usage) {
+            EnumSet<Usage> usage, boolean mcpEnabledByDefault) {
         this.methodName = methodName;
         this.description = description;
         this.parameters = parameters;
         this.usage = usage;
+        this.mcpEnabledByDefault = mcpEnabledByDefault;
     }
 
     public String getMethodName() {
@@ -61,13 +64,25 @@ public abstract class AbstractJsonRpcMethod {
     public void addParameter(String name, String description) {
         if (this.parameters == null)
             this.parameters = new LinkedHashMap<>();
-        this.parameters.put(name, new Parameter(String.class, description));
+        this.parameters.put(name, new Parameter(String.class, description, true));
+    }
+
+    public void addParameter(String name, String description, boolean required) {
+        if (this.parameters == null)
+            this.parameters = new LinkedHashMap<>();
+        this.parameters.put(name, new Parameter(String.class, description, required));
     }
 
     public void addParameter(String name, Class<?> type, String description) {
         if (this.parameters == null)
             this.parameters = new LinkedHashMap<>();
-        this.parameters.put(name, new Parameter(type, description));
+        this.parameters.put(name, new Parameter(type, description, true));
+    }
+
+    public void addParameter(String name, Class<?> type, String description, boolean required) {
+        if (this.parameters == null)
+            this.parameters = new LinkedHashMap<>();
+        this.parameters.put(name, new Parameter(type, description, required));
     }
 
     public boolean hasParameters() {
@@ -82,17 +97,35 @@ public abstract class AbstractJsonRpcMethod {
         this.usage = usage;
     }
 
+    public boolean isMcpEnabledByDefault() {
+        return mcpEnabledByDefault;
+    }
+
+    public void setMcpEnabledByDefault(boolean mcpEnabledByDefault) {
+        this.mcpEnabledByDefault = mcpEnabledByDefault;
+    }
+
     public static class Parameter {
         private Class<?> type;
         private String description;
+        private boolean required;
 
         public Parameter() {
 
         }
 
-        public Parameter(Class<?> type, String description) {
+        public Parameter(Class<?> type, String description, boolean required) {
             this.type = type;
             this.description = description;
+            this.required = required;
+        }
+
+        public boolean isRequired() {
+            return required;
+        }
+
+        public void setRequired(boolean required) {
+            this.required = required;
         }
 
         public Class<?> getType() {

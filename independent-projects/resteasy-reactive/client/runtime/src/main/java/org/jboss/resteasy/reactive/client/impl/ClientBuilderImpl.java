@@ -9,6 +9,7 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -40,6 +41,7 @@ import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.http.HttpVersion;
 import io.vertx.core.net.JksOptions;
 import io.vertx.core.net.ProxyOptions;
+import io.vertx.core.net.ProxyType;
 import io.vertx.core.net.SSLOptions;
 
 public class ClientBuilderImpl extends ClientBuilder {
@@ -56,6 +58,8 @@ public class ClientBuilderImpl extends ClientBuilder {
     private String proxyPassword;
     private String proxyUser;
     private String nonProxyHosts;
+    private Duration proxyConnectTimeout;
+    private ProxyType proxyType;
 
     private boolean followRedirects;
 
@@ -255,6 +259,12 @@ public class ClientBuilderImpl extends ClientBuilder {
                 if (proxyUser != null && !proxyUser.isBlank()) {
                     proxyOptions.setUsername(proxyUser);
                 }
+                if (proxyConnectTimeout != null) {
+                    proxyOptions.setConnectTimeout(proxyConnectTimeout);
+                }
+                if (proxyType != null) {
+                    proxyOptions.setType(proxyType);
+                }
                 options.setProxyOptions(proxyOptions);
                 configureNonProxyHosts(options, nonProxyHosts);
             }
@@ -306,7 +316,7 @@ public class ClientBuilderImpl extends ClientBuilder {
                 followRedirects,
                 multiQueryParamMode,
                 loggingScope,
-                clientLogger, userAgent);
+                clientLogger, userAgent, tlsConfig != null ? tlsConfig.getName().orElse(null) : null);
 
     }
 
@@ -489,6 +499,16 @@ public class ClientBuilderImpl extends ClientBuilder {
 
     public ClientBuilderImpl nonProxyHosts(String nonProxyHosts) {
         this.nonProxyHosts = nonProxyHosts;
+        return this;
+    }
+
+    public ClientBuilderImpl proxyConnectTimeout(Duration proxyConnectTimeout) {
+        this.proxyConnectTimeout = proxyConnectTimeout;
+        return this;
+    }
+
+    public ClientBuilderImpl proxyType(ProxyType proxyType) {
+        this.proxyType = proxyType;
         return this;
     }
 }

@@ -9,12 +9,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import io.quarkus.oidc.common.runtime.config.OidcClientCommonConfigBuilder;
 import io.quarkus.oidc.runtime.OidcConfig;
 import io.quarkus.oidc.runtime.OidcTenantConfig;
 import io.quarkus.oidc.runtime.OidcTenantConfig.ApplicationType;
 import io.quarkus.oidc.runtime.OidcTenantConfig.Authentication;
+import io.quarkus.oidc.runtime.OidcTenantConfig.Authentication.CacheControl;
 import io.quarkus.oidc.runtime.OidcTenantConfig.CertificateChain;
 import io.quarkus.oidc.runtime.OidcTenantConfig.CodeGrant;
 import io.quarkus.oidc.runtime.OidcTenantConfig.IntrospectionCredentials;
@@ -234,6 +236,7 @@ public final class OidcTenantConfigBuilder extends OidcClientCommonConfigBuilder
     private IntrospectionCredentials introspectionCredentials;
     private Roles roles;
     private ResourceMetadata resourceMetadata;
+    private Optional<Set<CacheControl>> cacheControl;
     private CertificateChain certificateChain;
     private CodeGrant codeGrant;
     private TokenStateManager tokenStateManager;
@@ -858,17 +861,18 @@ public final class OidcTenantConfigBuilder extends OidcClientCommonConfigBuilder
     }
 
     /**
-     * Builder for the {@link IntrospectionCredentials}.
+     * Builder for the {@link ResourceMetadata}.
      */
     public static final class ResourceMetadataBuilder {
 
         private record ResourceMetadataImpl(boolean enabled, Optional<String> resource,
-                boolean forceHttpsScheme) implements ResourceMetadata {
+                Optional<String> authorizationServer, boolean forceHttpsScheme) implements ResourceMetadata {
         }
 
         private final OidcTenantConfigBuilder builder;
         private boolean enabled;
         private Optional<String> resource;
+        private Optional<String> authorizationServer;
         private boolean forceHttpsScheme;
 
         public ResourceMetadataBuilder() {
@@ -879,6 +883,7 @@ public final class OidcTenantConfigBuilder extends OidcClientCommonConfigBuilder
             this.builder = Objects.requireNonNull(builder);
             this.enabled = builder.resourceMetadata.enabled();
             this.resource = builder.resourceMetadata.resource();
+            this.authorizationServer = builder.resourceMetadata.authorizationServer();
             this.forceHttpsScheme = builder.resourceMetadata.forceHttpsScheme();
         }
 
@@ -906,6 +911,15 @@ public final class OidcTenantConfigBuilder extends OidcClientCommonConfigBuilder
          */
         public ResourceMetadataBuilder resource(String resource) {
             this.resource = Optional.ofNullable(resource);
+            return this;
+        }
+
+        /**
+         * @param resource {@link ResourceMetadata#authorizationServer()}
+         * @return this builder
+         */
+        public ResourceMetadataBuilder authorizationServer(String authorizationServer) {
+            this.authorizationServer = Optional.ofNullable(authorizationServer);
             return this;
         }
 
@@ -938,7 +952,7 @@ public final class OidcTenantConfigBuilder extends OidcClientCommonConfigBuilder
          * @return built ResourceMetadata
          */
         public ResourceMetadata build() {
-            return new ResourceMetadataImpl(enabled, resource, forceHttpsScheme);
+            return new ResourceMetadataImpl(enabled, resource, authorizationServer, forceHttpsScheme);
         }
     }
 

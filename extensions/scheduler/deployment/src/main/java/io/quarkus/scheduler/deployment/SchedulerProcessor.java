@@ -366,7 +366,7 @@ public class SchedulerProcessor {
 
     @BuildStep
     @Record(RUNTIME_INIT)
-    public FeatureBuildItem build(
+    public void build(
             SchedulerRecorder recorder,
             BuildProducer<SyntheticBeanBuildItem> syntheticBeans,
             List<ScheduledBusinessMethodItem> scheduledMethods,
@@ -394,7 +394,9 @@ public class SchedulerProcessor {
         };
 
         ClassOutput classOutput = new GeneratedClassGizmo2Adaptor(generatedClasses, generatedResources, generatedToBaseNameFun);
-        Gizmo gizmo = Gizmo.create(classOutput);
+        Gizmo gizmo = Gizmo.create(classOutput)
+                .withDebugInfo(false)
+                .withParameters(false);
 
         for (ScheduledBusinessMethodItem scheduledMethod : scheduledMethods) {
             MutableScheduledMethod metadata = new MutableScheduledMethod();
@@ -415,7 +417,10 @@ public class SchedulerProcessor {
                 .supplier(recorder.createContext(scheduledMetadata, !schedulerForcedStartItems.isEmpty(),
                         discoveredImplementations.getAutoImplementation()))
                 .done());
+    }
 
+    @BuildStep
+    FeatureBuildItem feature() {
         return new FeatureBuildItem(Feature.SCHEDULER);
     }
 

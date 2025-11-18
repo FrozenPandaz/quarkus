@@ -26,8 +26,6 @@ import jakarta.persistence.SharedCacheMode;
 import jakarta.persistence.ValidationMode;
 
 import org.hibernate.cfg.AvailableSettings;
-import org.hibernate.community.dialect.CommunityDatabase;
-import org.hibernate.dialect.Database;
 import org.hibernate.id.SequenceMismatchStrategy;
 import org.hibernate.jpa.boot.spi.JpaSettings;
 import org.hibernate.jpa.boot.spi.PersistenceUnitDescriptor;
@@ -45,7 +43,6 @@ import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBuildItem;
 import io.quarkus.hibernate.orm.deployment.HibernateConfigUtil;
 import io.quarkus.hibernate.orm.deployment.HibernateOrmConfig;
 import io.quarkus.hibernate.orm.deployment.HibernateOrmConfigPersistenceUnit;
-import io.quarkus.hibernate.orm.deployment.JpaModelBuildItem;
 import io.quarkus.hibernate.orm.deployment.spi.DatabaseKindDialectBuildItem;
 import io.quarkus.hibernate.orm.runtime.HibernateOrmRuntimeConfig;
 import io.quarkus.hibernate.orm.runtime.boot.QuarkusPersistenceUnitDescriptor;
@@ -64,10 +61,6 @@ public final class HibernateProcessorUtil {
     public static final String NO_SQL_LOAD_SCRIPT_FILE = "no-file";
 
     private HibernateProcessorUtil() {
-    }
-
-    public static boolean hasEntities(JpaModelBuildItem jpaModel) {
-        return !jpaModel.getEntityClassNames().isEmpty();
     }
 
     public static Optional<FormatMapperKind> jsonMapperKind(Capabilities capabilities, BuiltinFormatMapperBehaviour behaviour) {
@@ -103,7 +96,6 @@ public final class HibernateProcessorUtil {
             Optional<String> explicitDbMinVersion,
             HibernateOrmConfigPersistenceUnit.HibernateOrmConfigPersistenceUnitDialect dialectConfig,
             List<DatabaseKindDialectBuildItem> dbKindDialectBuildItems,
-            Optional<String> storageEngine,
             BuildProducer<SystemPropertyBuildItem> systemProperties,
             BiConsumer<String, String> puPropertiesCollector,
             Set<String> storageEngineCollector) {
@@ -115,6 +107,9 @@ public final class HibernateProcessorUtil {
             for (DatabaseKindDialectBuildItem item : dbKindDialectBuildItems) {
                 if (dbKind.isPresent() && DatabaseKind.is(dbKind.get(), item.getDbKind())
                         || explicitDialect.isPresent() && item.getMatchingDialects().contains(explicitDialect.get())) {
+                    if (dbKind.isEmpty()) {
+                        dbKind = Optional.ofNullable(item.getDbKind());
+                    }
                     dbProductName = item.getDatabaseProductName();
                     if (dbProductName.isEmpty() && explicitDialect.isEmpty()) {
                         dialect = item.getDialectOptional();
@@ -145,29 +140,26 @@ public final class HibernateProcessorUtil {
             puPropertiesCollector.accept(AvailableSettings.JAKARTA_HBM2DDL_DB_VERSION, dbProductVersion.get());
         }
 
-        Optional<SupportedDatabaseKind> supportedDatabaseKind = handleDialectSpecificSettings(
+        Optional<SupportedDatabaseKind> supportedDbKind = dbKind.flatMap(SupportedDatabaseKind::from);
+
+        handleDialectSpecificSettings(
                 persistenceUnitName,
                 systemProperties,
                 puPropertiesCollector,
                 storageEngineCollector,
                 dialectConfig,
-                dbKind,
-                dbProductName);
+                supportedDbKind);
 
-        return supportedDatabaseKind;
+        return supportedDbKind;
     }
 
-    private static Optional<SupportedDatabaseKind> handleDialectSpecificSettings(
+    private static void handleDialectSpecificSettings(
             String persistenceUnitName,
             BuildProducer<SystemPropertyBuildItem> systemProperties,
             BiConsumer<String, String> puPropertiesCollector,
             Set<String> storageEngineCollector,
             HibernateOrmConfigPersistenceUnit.HibernateOrmConfigPersistenceUnitDialect dialectConfig,
-            Optional<String> dbKind,
-            Optional<String> dbProductName) {
-
-        final Optional<SupportedDatabaseKind> databaseKind = determineDatabaseKind(dbKind, dbProductName);
-
+            Optional<SupportedDatabaseKind> databaseKind) {
         handleStorageEngine(databaseKind, persistenceUnitName, dialectConfig, storageEngineCollector,
                 systemProperties);
 
@@ -215,53 +207,6 @@ public final class HibernateProcessorUtil {
                         puPropertiesCollector);
             }
         }
-
-        return databaseKind;
-    }
-
-    private static Optional<SupportedDatabaseKind> determineDatabaseKind(
-            Optional<String> dbKindOptional,
-            Optional<String> dbProductNameOptional) {
-
-        Optional<SupportedDatabaseKind> supportedDatabaseKindFromDBKind = dbKindOptional.flatMap(SupportedDatabaseKind::from);
-
-        return supportedDatabaseKindFromDBKind.or(() -> supportedDatabaseKindFromProductName(dbProductNameOptional));
-    }
-
-    private static Optional<SupportedDatabaseKind> supportedDatabaseKindFromProductName(
-            Optional<String> dbProductNameOptional) {
-
-        return dbProductNameOptional
-                .filter(s -> !s.isEmpty())
-                .flatMap(dbProductName -> {
-
-                    if (Database.DB2.productNameMatches(dbProductName)) {
-                        return Optional.of(SupportedDatabaseKind.DB2);
-                    }
-                    if (CommunityDatabase.DERBY.productNameMatches(dbProductName)) {
-                        return Optional.of(SupportedDatabaseKind.DERBY);
-                    }
-                    if (Database.H2.productNameMatches(dbProductName)) {
-                        return Optional.of(SupportedDatabaseKind.H2);
-                    }
-                    if (Database.MARIADB.productNameMatches(dbProductName)) {
-                        return Optional.of(SupportedDatabaseKind.MARIADB);
-                    }
-                    if (Database.MYSQL.productNameMatches(dbProductName)) {
-                        return Optional.of(SupportedDatabaseKind.MYSQL);
-                    }
-                    if (Database.ORACLE.productNameMatches(dbProductName)) {
-                        return Optional.of(SupportedDatabaseKind.ORACLE);
-                    }
-                    if (Database.POSTGRESQL.productNameMatches(dbProductName)) {
-                        return Optional.of(SupportedDatabaseKind.POSTGRESQL);
-                    }
-                    if (Database.SQLSERVER.productNameMatches(dbProductName)) {
-                        return Optional.of(SupportedDatabaseKind.MSSQL);
-                    }
-                    return Optional.empty();
-
-                });
     }
 
     private static void handleStorageEngine(
@@ -387,6 +332,28 @@ public final class HibernateProcessorUtil {
         desc.getProperties().setProperty(AvailableSettings.PREFERRED_POOLED_OPTIMIZER,
                 config.mapping().id().optimizer().idOptimizerDefault()
                         .orElse(HibernateOrmConfigPersistenceUnit.IdOptimizerType.POOLED_LO).configName);
+
+        // Duration
+        config.mapping().duration().durationPreferredJdbcType().ifPresent(duration -> desc.getProperties().setProperty(
+                AvailableSettings.PREFERRED_DURATION_JDBC_TYPE,
+                duration));
+
+        // Instant
+        config.mapping().instantPreferredJdbcType().ifPresent(instant -> desc.getProperties().setProperty(
+                AvailableSettings.PREFERRED_INSTANT_JDBC_TYPE,
+                instant));
+
+        // Boolean
+        config.mapping().booleanPreferredJdbcType().ifPresent(
+                bool -> desc.getProperties().setProperty(
+                        AvailableSettings.PREFERRED_BOOLEAN_JDBC_TYPE,
+                        bool));
+
+        // UUID
+        config.mapping().UUIDPreferredJdbcType().ifPresent(
+                uuid -> desc.getProperties().setProperty(
+                        AvailableSettings.PREFERRED_UUID_JDBC_TYPE,
+                        uuid));
 
         //charset
         desc.getProperties()

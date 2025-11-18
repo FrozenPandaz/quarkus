@@ -29,10 +29,7 @@ class AgroalDevUIProcessor {
                 cardPageBuildItem.addPage(Page.webComponentPageBuilder()
                         .icon("font-awesome-solid:database")
                         .title("Database view")
-                        .componentLink("qwc-agroal-datasource.js")
-                        .metadata("allowSql", String.valueOf(config.devui().allowSql()))
-                        .metadata("appendSql", config.devui().appendToDefaultSelect().orElse(""))
-                        .metadata("allowedHost", config.devui().allowedDBHost().orElse(null)));
+                        .componentLink("qwc-agroal-datasource.js"));
             }
         }
 
@@ -50,6 +47,7 @@ class AgroalDevUIProcessor {
                     return assistant.assistBuilder()
                             .userMessage(ADD_DATA_MESSAGE)
                             .variables(p)
+                            .responseType(MoreDataResponse.class)
                             .assist();
                 }).build();
 
@@ -66,7 +64,10 @@ class AgroalDevUIProcessor {
             Given the provided sql script:
             {{currentInsertScript}}
             Can you add 10 more inserts into the script and return the result
-            (including the provided entries, so update the script)
-            Return the result in a field called `script`.
+            (including the provided entries, so update the script) in the script field.
             """;
+
+    final record MoreDataResponse(String script) {
+    }
+
 }

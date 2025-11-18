@@ -129,7 +129,7 @@ public abstract class QuarkusDev extends QuarkusTask {
         objectFactory = getProject().getObjects();
 
         workingDirectory = objectFactory.property(File.class);
-        workingDirectory.convention(getProject().provider(() -> QuarkusPluginExtension.getLastFile(getCompilationOutput())));
+        workingDirectory.convention(getProject().provider(() -> getProject().getLayout().getProjectDirectory().getAsFile()));
 
         environmentVariables = objectFactory.mapProperty(String.class, String.class);
 
@@ -186,8 +186,7 @@ public abstract class QuarkusDev extends QuarkusTask {
     /**
      * The directory to be used as the working dir for the dev process.
      *
-     * Defaults to the main source set's classes directory. If there are
-     * multiple, one is picked at random (see {@link QuarkusPluginExtension#getLastFile}).
+     * Defaults to the project directory.
      *
      * @return workingDirectory
      */
@@ -412,6 +411,16 @@ public abstract class QuarkusDev extends QuarkusTask {
         return false;
     }
 
+    /**
+     * Returns launch mode for the target application model.
+     *
+     * @return launch mode for the target application model
+     */
+    @Internal
+    protected LaunchMode getLaunchMode() {
+        return LaunchMode.DEVELOPMENT;
+    }
+
     private DevModeCommandLine newLauncher(final AnalyticsService analyticsService) throws Exception {
         final Project project = getProject();
         final JavaPluginExtension javaPluginExtension = project.getExtensions().getByType(JavaPluginExtension.class);
@@ -467,7 +476,7 @@ public abstract class QuarkusDev extends QuarkusTask {
 
         builder.sourceEncoding(getSourceEncoding());
 
-        final ApplicationModel appModel = extension().getApplicationModel(LaunchMode.DEVELOPMENT);
+        final ApplicationModel appModel = extension().getApplicationModel(getLaunchMode());
         builder.extensionDevModeConfig(appModel.getExtensionDevModeConfig())
                 .extensionDevModeJvmOptionFilter(extensionJvmOptions);
 
@@ -539,7 +548,8 @@ public abstract class QuarkusDev extends QuarkusTask {
         serializedModel.toFile().deleteOnExit();
         builder.jvmArgs("-D" + BootstrapConstants.SERIALIZED_APP_MODEL + "=" + serializedModel.toAbsolutePath());
 
-        final ApplicationModel testAppModel = extension().getApplicationModel(LaunchMode.TEST);
+        final ApplicationModel testAppModel = getLaunchMode().equals(LaunchMode.TEST) ? appModel
+                : extension().getApplicationModel(LaunchMode.TEST);
         final Path serializedTestModel = ToolingUtils.serializeAppModel(testAppModel, this, true);
         serializedTestModel.toFile().deleteOnExit();
         builder.jvmArgs("-D" + BootstrapConstants.SERIALIZED_TEST_APP_MODEL + "=" + serializedTestModel.toAbsolutePath());

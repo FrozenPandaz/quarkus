@@ -193,7 +193,6 @@
                 <module>jpa</module>
                 <module>jpa-mapping-xml</module>
                 <module>jpa-db2</module>
-                <module>jpa-derby</module>
                 <module>jpa-postgresql</module>
                 <module>jpa-postgresql-withxml</module>
                 <module>jpa-mariadb</module>
@@ -307,6 +306,7 @@
                 <module>resteasy-mutiny</module>
                 <module>virtual-http</module>
                 <module>virtual-http-resteasy</module>
+                <module>command-mode</module>
                 <module>maven</module>
                 <module>scala</module>
                 <module>kotlin</module>
@@ -334,6 +334,7 @@
                 <module>redis-cache</module>
                 <module>logging-gelf</module>
                 <module>cache</module>
+                <module>cache-multiple-backends</module>
                 <module>qute</module>
                 <module>injectmock</module>
                 <module>reactive-messaging-amqp</module>
@@ -420,6 +421,8 @@
                 <module>grpc-stork-simple</module>
                 <module>grpc-exceptions</module>
                 <module>grpc-test-random-port</module>
+                <module>grpc-proto3</module>
+                <module>grpc-proto4</module>
                 <module>google-cloud-functions-http</module>
                 <module>google-cloud-functions</module>
                 <module>istio</module>
@@ -449,6 +452,7 @@
             </activation>
             <properties>
                 <quarkus.native.enabled>true</quarkus.native.enabled>
+                <quarkus.package.jar.enabled>false</quarkus.package.jar.enabled>
             </properties>
             <build>
                 <pluginManagement>

@@ -35,6 +35,7 @@ import org.htmlunit.WebResponse;
 import org.htmlunit.html.HtmlForm;
 import org.htmlunit.html.HtmlPage;
 import org.htmlunit.util.Cookie;
+import org.htmlunit.util.NameValuePair;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -97,16 +98,7 @@ public class CodeFlowTest {
             assertEquals("Welcome to Test App", page.getTitleText(),
                     "A second request should not redirect and just re-authenticate the user");
 
-            page = webClient.getPage("http://localhost:8081/web-app/configMetadataIssuer");
-
-            assertEquals(
-                    client.getAuthServerUrl(),
-                    page.asNormalizedText());
-
-            page = webClient.getPage("http://localhost:8081/web-app/configMetadataScopes");
-
-            assertTrue(page.asNormalizedText().contains("openid"));
-            assertTrue(page.asNormalizedText().contains("profile"));
+            verifyConfigurationMetadata(webClient);
 
             Cookie sessionCookie = getSessionCookie(webClient, null);
             assertNotNull(sessionCookie);
@@ -150,8 +142,49 @@ public class CodeFlowTest {
             checkHealth();
 
             // Static default tenant
-            checkResourceMetadata(null, "quarkus");
+            checkResourceMetadata(null, "/realms/quarkus");
         }
+    }
+
+    private void verifyConfigurationMetadata(WebClient webClient) throws IOException {
+        // Issuer
+        HtmlPage page = webClient.getPage("http://localhost:8081/web-app/configMetadataIssuer");
+
+        assertEquals(
+                client.getAuthServerUrl(),
+                page.asNormalizedText());
+
+        // Scopes
+        page = webClient.getPage("http://localhost:8081/web-app/configMetadataScopes");
+
+        assertTrue(page.asNormalizedText().contains("openid"));
+        assertTrue(page.asNormalizedText().contains("profile"));
+
+        // Response types
+        page = webClient.getPage("http://localhost:8081/web-app/configMetadataResponseTypes");
+
+        assertTrue(page.asNormalizedText().contains("code"));
+        assertTrue(page.asNormalizedText().contains("token"));
+
+        // Subject types
+        page = webClient.getPage("http://localhost:8081/web-app/configMetadataSubjectTypes");
+
+        assertTrue(page.asNormalizedText().contains("public"));
+        assertTrue(page.asNormalizedText().contains("pairwise"));
+
+        // ID token signing algorithms
+        page = webClient.getPage("http://localhost:8081/web-app/configMetadataIdTokenSigningAlgorithms");
+
+        assertTrue(page.asNormalizedText().contains("RS256"));
+        assertTrue(page.asNormalizedText().contains("ES256"));
+        assertTrue(page.asNormalizedText().contains("PS256"));
+
+        // PKCE code challenge methods
+        page = webClient.getPage("http://localhost:8081/web-app/configMetadataCodeChallengeMethods");
+
+        assertTrue(page.asNormalizedText().contains("S256"));
+        assertTrue(page.asNormalizedText().contains("plain"));
+
     }
 
     private static void checkHealth() {
@@ -465,7 +498,7 @@ public class CodeFlowTest {
             assertEquals("Unexpected 401", ex.getMessage());
         }
         // Static `tenant-nonce` tenant with custom resource path
-        checkResourceMetadata("metadata", "quarkus");
+        checkResourceMetadata("metadata", ":8080/q/oidc");
     }
 
     private void doTestCodeFlowNonce(boolean wrongRedirect) throws Exception {
@@ -797,8 +830,13 @@ public class CodeFlowTest {
             page = loginForm.getButtonByName("login").click();
             assertEquals("Tenant Refresh, refreshed: false", page.asNormalizedText());
 
+            // The session cookie is returned after the authorization code flow completed
+            // At this point cache-control must be set to `no-store`
+            assertEquals("no-store", page.getWebResponse().getResponseHeaderValue("cache-control"));
+            assertNotNull(getSessionSetCookieHeader(page.getWebResponse(), "tenant-refresh"));
             Cookie sessionCookie = getSessionCookie(webClient, "tenant-refresh");
             assertNotNull(sessionCookie);
+
             String idToken = getIdToken(sessionCookie);
 
             //wait now so that we reach the ID token timeout
@@ -820,11 +858,22 @@ public class CodeFlowTest {
                         }
                     });
 
+            // The session cookie has been refreshed
+            // At this point cache-control must be set to `no-store`
+            assertEquals("no-store", page.getWebResponse().getResponseHeaderValue("cache-control"));
+            assertNotNull(getSessionSetCookieHeader(page.getWebResponse(), "tenant-refresh"));
+
             // local session refreshed and still valid
             page = webClient.getPage("http://localhost:8081/tenant-refresh");
             assertEquals("Tenant Refresh, refreshed: false", page.asNormalizedText());
+
+            // Set-Cookie header is not returned this time
+            assertNull(getSessionSetCookieHeader(page.getWebResponse(), "tenant-refresh"));
+            // But WebClient cache has the session cookie
             assertNotNull(getSessionCookie(webClient, "tenant-refresh"));
 
+            // cache-control is only expected when the session cookie is returned
+            assertNull(page.getWebResponse().getResponseHeaderValue("cache-control"));
             //wait now so that we reach the refresh timeout
             await().atMost(20, TimeUnit.SECONDS)
                     .pollInterval(Duration.ofSeconds(1))
@@ -869,7 +918,7 @@ public class CodeFlowTest {
             webClient.getCookieManager().clearCookies();
 
             // Static `tenant-refresh` tenant
-            checkResourceMetadata("tenant-refresh", "logout-realm");
+            checkResourceMetadata("tenant-refresh", "/realms/logout-realm");
         }
     }
 
@@ -1501,6 +1550,28 @@ public class CodeFlowTest {
         }
     }
 
+    @Test
+    public void testRestoreQueryKeepRedirectParams() throws IOException, InterruptedException {
+        try (final WebClient webClient = createWebClient()) {
+            HtmlPage page = webClient
+                    .getPage(
+                            "http://localhost:8081/web-app/refresh/tenant-restore-query-keep-redirect-params?context=contextValue");
+
+            assertEquals("Sign in to quarkus", page.getTitleText());
+
+            HtmlForm loginForm = page.getForms().get(0);
+
+            loginForm.getInputByName("username").setValueAttribute("alice");
+            loginForm.getInputByName("password").setValueAttribute("alice");
+
+            page = loginForm.getButtonByName("login").click();
+
+            assertEquals("RT injected;context=contextValue",
+                    page.getBody().asNormalizedText());
+            webClient.getCookieManager().clearCookies();
+        }
+    }
+
     private void doTestAccessAndRefreshTokenInjectionWithoutIndexHtmlAndListener(WebClient webClient)
             throws IOException, InterruptedException {
         HtmlPage page = webClient.getPage("http://localhost:8081/web-app/refresh/tenant-listener");
@@ -1750,6 +1821,17 @@ public class CodeFlowTest {
         }
     }
 
+    private String getSessionSetCookieHeader(WebResponse response, String tenantId) {
+        String cookieName = "q_session" + (tenantId == null ? "_Default_test" : "_" + tenantId);
+        for (NameValuePair h : response.getResponseHeaders()) {
+            if ("Set-Cookie".equalsIgnoreCase(h.getName())
+                    && h.getValue().startsWith(cookieName)) {
+                return h.getValue();
+            }
+        }
+        return null;
+    }
+
     private Cookie getSessionAtCookie(WebClient webClient, String tenantId) {
         return webClient.getCookieManager().getCookie("q_session_at" + (tenantId == null ? "_Default_test" : "_" + tenantId));
     }
@@ -1762,7 +1844,7 @@ public class CodeFlowTest {
         return sessionCookie.getValue().split("\\|")[0];
     }
 
-    private static void checkResourceMetadata(String resource, String realm) {
+    private static void checkResourceMetadata(String resource, String authorizationServerSuffix) {
         Response metadataResponse = RestAssured.when()
                 .get("http://localhost:8081" + OidcConstants.RESOURCE_METADATA_WELL_KNOWN_PATH
                         + (resource == null ? "" : "/" + resource));
@@ -1774,6 +1856,6 @@ public class CodeFlowTest {
 
         String authorizationServer = jsonAuthorizarionServers.getString(0);
         assertTrue(authorizationServer.startsWith("http://localhost:"));
-        assertTrue(authorizationServer.endsWith("/realms/" + realm));
+        assertTrue(authorizationServer.endsWith(authorizationServerSuffix));
     }
 }

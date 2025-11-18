@@ -92,7 +92,7 @@ public class DevServicesProcessor {
     @BuildStep(onlyIf = IsDevServicesSupportedByLaunchMode.class)
     @Produce(ServiceStartBuildItem.class)
     public DevServicesCustomizerBuildItem containerCustomizer(LaunchModeBuildItem launchModeBuildItem,
-            DevServicesConfig globalDevServicesConfig) {
+            DevServicesConfig devServicesConfig) {
         return new DevServicesCustomizerBuildItem((devService, startable) -> {
             LaunchMode launchMode = launchModeBuildItem.getLaunchMode();
             if (startable instanceof StartableContainer startableContainer) {
@@ -101,10 +101,10 @@ public class DevServicesProcessor {
                 if (shouldConfigureSharedServiceLabel(launchMode)) {
                     container.withLabel(Labels.QUARKUS_DEV_SERVICE, devService.getServiceName());
                 }
-                globalDevServicesConfig.timeout().ifPresent(container::withStartupTimeout);
+                devServicesConfig.timeout().ifPresent(container::withStartupTimeout);
             } else if (startable instanceof GenericContainer container) {
                 configureLabels(container, launchMode);
-                globalDevServicesConfig.timeout().ifPresent(container::withStartupTimeout);
+                devServicesConfig.timeout().ifPresent(container::withStartupTimeout);
                 if (shouldConfigureSharedServiceLabel(launchMode)) {
                     container.withLabel(Labels.QUARKUS_DEV_SERVICE, devService.getServiceName());
                 }
@@ -144,10 +144,10 @@ public class DevServicesProcessor {
     @Produce(ServiceStartBuildItem.class)
     DevServicesRegistryBuildItem devServicesRegistry(LaunchModeBuildItem launchMode,
             ApplicationInstanceIdBuildItem applicationId,
-            DevServicesConfig globalDevServicesConfig,
+            DevServicesConfig devServicesConfig,
             CuratedApplicationShutdownBuildItem shutdownBuildItem) {
         DevServicesRegistryBuildItem registryBuildItem = new DevServicesRegistryBuildItem(applicationId.getUUID(),
-                globalDevServicesConfig, launchMode.getLaunchMode());
+                devServicesConfig, launchMode.getLaunchMode());
         shutdownBuildItem.addCloseTask(registryBuildItem::closeAllRunningServices, true);
         return registryBuildItem;
     }
@@ -179,9 +179,8 @@ public class DevServicesProcessor {
             List<DevServicesResultBuildItem> devServicesResults,
             DevServicesRegistryBuildItem devServicesRegistry) {
         containerLogForwarders.clear();
-        boolean isContainerRuntimeAvailable = dockerStatusBuildItem.isContainerRuntimeAvailable();
         List<DevServiceDescriptionBuildItem> serviceDescriptions = buildServiceDescriptions(
-                isContainerRuntimeAvailable, devServicesResults, devServicesRegistry,
+                dockerStatusBuildItem, devServicesResults, devServicesRegistry,
                 devServicesLauncherConfig);
 
         for (DevServiceDescriptionBuildItem devService : serviceDescriptions) {
@@ -213,7 +212,7 @@ public class DevServicesProcessor {
         context.reset(
                 new ConsoleCommand('c', "Show Dev Services containers", null, () -> {
                     List<DevServiceDescriptionBuildItem> descriptions = buildServiceDescriptions(
-                            isContainerRuntimeAvailable, devServicesResults, devServicesRegistry,
+                            dockerStatusBuildItem, devServicesResults, devServicesRegistry,
                             devServicesLauncherConfig);
                     StringBuilder builder = new StringBuilder();
                     builder.append("\n\n")
@@ -260,7 +259,7 @@ public class DevServicesProcessor {
     }
 
     private List<DevServiceDescriptionBuildItem> buildServiceDescriptions(
-            boolean isContainerRuntimeAvailable,
+            DockerStatusBuildItem dockerStatusBuildItem,
             List<DevServicesResultBuildItem> devServicesResults,
             DevServicesRegistryBuildItem devServicesRegistry,
             Optional<DevServicesLauncherConfigResultBuildItem> devServicesLauncherConfig) {
@@ -270,7 +269,8 @@ public class DevServicesProcessor {
         List<DevServiceDescriptionBuildItem> descriptions = new ArrayList<>();
         for (DevServicesResultBuildItem buildItem : devServicesResults) {
             configKeysFromDevServices.addAll(buildItem.getConfig().keySet());
-            descriptions.add(toDevServiceDescription(buildItem, buildItem::getContainerId, isContainerRuntimeAvailable,
+            descriptions.add(toDevServiceDescription(buildItem, buildItem::getContainerId,
+                    dockerStatusBuildItem.isContainerRuntimeAvailable(),
                     devServicesRegistry));
         }
         // Sort descriptions by name
@@ -349,6 +349,10 @@ public class DevServicesProcessor {
     }
 
     private ContainerInfo.ContainerPort[] getExposedPorts(Container container) {
+        if (container.getPorts() == null) {
+            return new ContainerInfo.ContainerPort[0];
+        }
+
         return Arrays.stream(container.getPorts())
                 .map(c -> new ContainerInfo.ContainerPort(c.getIp(), c.getPrivatePort(), c.getPublicPort(), c.getType()))
                 .toArray(ContainerInfo.ContainerPort[]::new);

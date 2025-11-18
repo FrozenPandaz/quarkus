@@ -1,19 +1,22 @@
 package io.quarkus.oidc.client.reactive.filter.runtime;
 
+import java.lang.reflect.Method;
 import java.util.function.Consumer;
 
 import jakarta.ws.rs.core.HttpHeaders;
 
 import org.jboss.logging.Logger;
+import org.jboss.resteasy.reactive.client.impl.RestClientRequestContext;
 import org.jboss.resteasy.reactive.client.spi.ResteasyReactiveClientRequestContext;
 import org.jboss.resteasy.reactive.client.spi.ResteasyReactiveClientRequestFilter;
 
 import io.quarkus.oidc.client.Tokens;
 import io.quarkus.oidc.client.runtime.AbstractTokensProducer;
 import io.quarkus.oidc.client.runtime.DisabledOidcClientException;
+import io.quarkus.oidc.client.runtime.MethodDescription;
 import io.quarkus.oidc.common.runtime.OidcConstants;
 
-public class AbstractOidcClientRequestReactiveFilter extends AbstractTokensProducer
+public abstract class AbstractOidcClientRequestReactiveFilter extends AbstractTokensProducer
         implements ResteasyReactiveClientRequestFilter {
     private static final Logger LOG = Logger.getLogger(AbstractOidcClientRequestReactiveFilter.class);
     private static final String BEARER_SCHEME_WITH_SPACE = OidcConstants.BEARER_SCHEME + " ";
@@ -28,6 +31,10 @@ public class AbstractOidcClientRequestReactiveFilter extends AbstractTokensProdu
 
     @Override
     public void filter(ResteasyReactiveClientRequestContext requestContext) {
+        if (skipPropagation(requestContext)) {
+            return;
+        }
+
         if (isClientFeatureDisabled()) {
             LOG.debug("OIDC client filter can not acquire and propagate tokens because "
                     + "OIDC client is disabled with `quarkus.oidc-client.enabled=false`");
@@ -39,7 +46,7 @@ public class AbstractOidcClientRequestReactiveFilter extends AbstractTokensProdu
             requestContext.setProperty(REQUEST_FILTER_KEY, this);
         }
 
-        super.getTokens().subscribe().with(new Consumer<>() {
+        getTokens().subscribe().with(new Consumer<>() {
             @Override
             public void accept(Tokens tokens) {
                 requestContext.getHeaders().putSingle(HttpHeaders.AUTHORIZATION,
@@ -82,5 +89,30 @@ public class AbstractOidcClientRequestReactiveFilter extends AbstractTokensProdu
 
     private boolean accessTokenNeedsRefresh() {
         return refreshOnUnauthorized() && accessTokenNeedsRefresh;
+    }
+
+    private boolean skipPropagation(ResteasyReactiveClientRequestContext requestContext) {
+        if (getMethodDescription() == null) {
+            return false;
+        }
+
+        return !getMethodDescription().equals(getInvokedRestClientMethodSignature(requestContext));
+    }
+
+    private static MethodDescription getInvokedRestClientMethodSignature(ResteasyReactiveClientRequestContext requestContext) {
+        if (requestContext.getProperty(RestClientRequestContext.INVOKED_METHOD_PROP) instanceof Method method) {
+            return MethodDescription.ofMethod(method);
+        }
+        throw new IllegalStateException(RestClientRequestContext.INVOKED_METHOD_PROP + " property must not be null");
+    }
+
+    /**
+     * This method is overridden by generated filter classes if the filter should only be applied on the REST client
+     * method.
+     *
+     * @return REST client method description for which this filter should be applied; or null if applies to all methods
+     */
+    protected MethodDescription getMethodDescription() {
+        return null;
     }
 }

@@ -1,15 +1,16 @@
 import { QwcHotReloadElement, html, css} from 'qwc-hot-reload-element';
-import { RouterController } from 'router-controller';
 import { JsonRpc } from 'jsonrpc';
+import { StorageController } from 'storage-controller';
 import '@vaadin/combo-box';
 import '@vaadin/item';
 import '@vaadin/icon';
 import '@vaadin/list-box';
+import '@vaadin/text-field';
 import '@qomponent/qui-card';
 import '@vaadin/grid';
 import '@vaadin/tabs';
 import '@vaadin/tabsheet';
-import { columnBodyRenderer, columnHeaderRenderer } from '@vaadin/grid/lit.js';
+import { columnBodyRenderer } from '@vaadin/grid/lit.js';
 import 'qui-themed-code-block';
 import { notifier } from 'notifier';
 import '@vaadin/progress-bar';
@@ -19,7 +20,8 @@ import '@vaadin/dialog';
 import '@qomponent/qui-dot';
 import 'qui-assistant-button';
 import 'qui-assistant-warning';
-import { dialogFooterRenderer, dialogHeaderRenderer, dialogRenderer } from '@vaadin/dialog/lit.js';
+import '@qomponent/qui-badge';
+import { dialogHeaderRenderer, dialogRenderer } from '@vaadin/dialog/lit.js';
 import { observeState } from 'lit-element-state';
 import { assistantState } from 'assistant-state';
 
@@ -29,9 +31,8 @@ import { assistantState } from 'assistant-state';
 export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
     jsonRpc = new JsonRpc(this);
     configJsonRpc = new JsonRpc("devui-configuration");
-    
-    routerController = new RouterController(this);
-    
+    storageControl = new StorageController(this);
+
     static styles = css`
         .dataSources{
             display: flex;
@@ -91,8 +92,6 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
             display: flex;
             align-items: center;
             padding-bottom: 10px;
-            border-bottom-style: dotted;
-            border-bottom-color: var(--lumo-contrast-10pct);
         }
 
         .sqlInput .cm-content {
@@ -111,9 +110,13 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
             margin: 0;
         }
     
-        #sql {
+        #sqlInput {
             width: 100%;
         }
+        #assistantInput {
+            width: 100%;
+        }
+    
         .data {
             display: flex;
             flex-direction: column;
@@ -161,6 +164,12 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
             align-self: center;
             padding-top: 50px;
         }
+    
+        qui-badge {
+            cursor: pointer;
+            padding-left: 2px;
+            padding-right: 5px;
+        }
     `;
     
     static properties = {
@@ -172,6 +181,7 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
         _selectedTableIndex:{state: true},
         _selectedTableCols:{state: true},
         _currentSQL: {state: true},
+        _currentEnglish: {state: true},
         _currentDataSet: {state: true},
         _isWatching: {state: true},
         _watchId: {state: false},
@@ -186,7 +196,11 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
         _showBusyLoadingDialog: {state: true},
         _showAssistantWarning: {state: true},
         _showImportSQLDialog: {state: true},
-        _showErDiagramDialog: {state: true}
+        _showErDiagramDialog: {state: true},
+        _englishToSQLEnabled: {state: true},
+        _englishToSQLLoadingMessage: {state: true},
+        _jsonColDialogOpened: {state: true},
+        _selectedJsonCol: {state: true}
     };
     
     constructor() {
@@ -199,6 +213,7 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
         this._selectedTableCols = null;
         this._selectedTableIndex = 0;
         this._currentSQL = null;
+        this._currentEnglish = null;
         this._currentDataSet = null;
         this._isWatching = false;
         this._watchId = null;
@@ -214,28 +229,35 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
         this._showAssistantWarning = false;
         this._showImportSQLDialog = false;
         this._showErDiagramDialog = false;
+        this._englishToSQLEnabled = this.storageControl.get("english-to-sql") === "true";
+        this._englishToSQLLoadingMessage = null;
+        this._jsonColDialogOpened = false;
+        this._selectedJsonCol = null;
     }
     
     connectedCallback() {
         super.connectedCallback();
-        
-        var page = this.routerController.getCurrentPage();
-        if(page && page.metadata){
-            this._allowSql = (page.metadata.allowSql === "true");
-            this._appendSql = page.metadata.appendSql;
-            this._allowedHost = page.metadata.allowedHost;
-        }else{
-            this._allowSql = false;
-            this._appendSql = "";
-            this._allowedHost = null;
-        }
-        
-        this.jsonRpc.getDataSources().then(jsonRpcResponse => {
-            this._dataSources = jsonRpcResponse.result.reduce((map, obj) => {
+        this.hotReload();
+    }
+
+    hotReload(){
+        const configPromise = this.configJsonRpc.getAllValues();
+        const dbPromise = this.jsonRpc.getDataSources();
+        Promise.all([configPromise, dbPromise]).then(values => {
+            const configValues = values[0].result;
+            this._allowSql = configValues['quarkus.datasource.dev-ui.allow-sql'] === 'true';
+            this._appendSql = configValues['quarkus.datasource.dev-ui.append-to-default-select'] || "";
+            this._allowedHost = configValues['quarkus.datasource.dev-ui.allowed-db-host'] || null;
+            const dsResponse = values[1].result;
+            if (dsResponse) {
+                this._dataSources = dsResponse.reduce((map, obj) => {
                     map[obj.name] = obj;
                     return map;
-              }, {});
+                }, {});
+            }
         });
+        this._jsonColDialogOpened = false;
+        this._selectedJsonCol = null;
     }
     
     disconnectedCallback() {
@@ -257,7 +279,8 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
                         </div>
                         ${this._renderBusyLoadingDialog()}
                         ${this._renderImportSqlDialog()}
-                        ${this._renderDotViewerDialog()}`;
+                        ${this._renderDotViewerDialog()}
+                        ${this._renderJsonColDialog()}`;
         } else {
             return this._renderProgressBar("Fetching data sources...");
         }
@@ -551,17 +574,25 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
     _renderTableData(){
         if(this._selectedTable && this._currentDataSet && this._currentDataSet.cols){
             return html`<div class="data">
-                            ${this._renderSqlInput()}
                             ${this._renderTableDataGrid()}
+                            ${this._renderSqlInput()}
                         </div>    
                     `;
         }else if(this._displaymessage){
             return html`<span>${this._displaymessage}</span>`;
         }else{
-            return html`<div style="color: var(--lumo-secondary-text-color);width: 95%;" >
-                <div>Fetching data...</div>
-                <vaadin-progress-bar indeterminate></vaadin-progress-bar>
-            </div>`;
+            if(assistantState.current.isConfigured && this._englishToSQLEnabled){
+                return html`<div style="color: var(--lumo-secondary-text-color);width: 95%;" >
+                    <div>${this._englishToSQLLoadingMessage}</div>
+                    <vaadin-progress-bar indeterminate></vaadin-progress-bar>
+                </div>`;
+            }else{
+                return html`<div style="color: var(--lumo-secondary-text-color);width: 95%;" >
+                    <div>Fetching data ...</div>
+                    <vaadin-progress-bar indeterminate></vaadin-progress-bar>
+                </div>`;
+            }
+            
         }
     }
     
@@ -633,15 +664,14 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
         if (this._allowSql) {
             return html`
                 <div class="sqlInput">
-                    <qui-themed-code-block @shiftEnter=${this._shiftEnterPressed} content="${this._currentSQL}"
-                                    class="font-large cursor-text" id="sql" mode="sql"
-                                    value='${this._currentSQL}' editable></qui-themed-code-block>
-                    <vaadin-button class="no-margin" slot="suffix" theme="icon tertiary small" aria-label="Clear">
+                    ${this._renderEnglishToSQLButton()}
+                    ${this._renderInputTextField()}
+                    <vaadin-button class="no-margin" theme="icon tertiary small" aria-label="Clear">
                         <vaadin-tooltip .hoverDelay=${500} slot="tooltip" text="Clear"></vaadin-tooltip>
-                        <vaadin-icon class="small-icon" @click=${this._clearSqlInput}
+                        <vaadin-icon class="small-icon" @click=${() => this._clearInput(this._englishToSQLEnabled)}
                                      icon="font-awesome-solid:broom"></vaadin-icon>
                     </vaadin-button>
-                    <vaadin-button class="no-margin" slot="suffix" theme="icon tertiary small" aria-label="Run">
+                    <vaadin-button class="no-margin" theme="icon tertiary small" aria-label="Run">
                         <vaadin-tooltip .hoverDelay=${500} slot="tooltip" text="Run"></vaadin-tooltip>
                         <vaadin-icon class="small-icon" @click=${this._executeClicked}
                                      icon="font-awesome-solid:play"></vaadin-icon>
@@ -649,6 +679,39 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
                 </div>`;
         } else {
             return html`<vaadin-button theme="small" @click="${this._handleAllowSqlChange}">Allow any SQL execution from here</vaadin-button>`;
+        }
+    }
+    
+    _renderInputTextField(){
+        if(assistantState.current.isConfigured && this._englishToSQLEnabled){
+           return html`<vaadin-text-field value='${this._currentEnglish}' placeholder="Describe the data you are looking for in English" @keydown="${this._englishKeyDown}" id="assistantInput">
+                            <vaadin-icon slot="prefix" icon="font-awesome-solid:robot" title="${this._currentSQL}"></vaadin-icon>
+                        </vaadin-text-field>`;     
+        }else{
+            return html`<qui-themed-code-block @shiftEnter=${this._shiftEnterPressed} content="${this._currentSQL}"
+                                    class="font-large cursor-text" id="sqlInput" mode="sql"
+                                    value='${this._currentSQL}' editable></qui-themed-code-block>`;
+        }
+    }
+    
+    _renderEnglishToSQLButton(){
+        if(assistantState.current.isConfigured){
+            if(this._englishToSQLEnabled){
+                return html`Using <qui-badge @click=${this._switchEnglishToSQL} color="var(--quarkus-assistant)"><span>Assistant</span></qui-badge>`;
+            }else{
+                return html`Using <qui-badge @click=${this._switchEnglishToSQL}><span>SQL</span></qui-badge>`;
+            }
+        }
+    }
+    
+    _switchEnglishToSQL(){
+        this._englishToSQLEnabled = !this._englishToSQLEnabled;
+        this.storageControl.set("english-to-sql", this._englishToSQLEnabled);
+    }
+    
+    _englishKeyDown(e){
+        if (e.key === 'Enter') {
+            this._executeClickedAI();
         }
     }
     
@@ -670,7 +733,7 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
             'value': 'true'
         }).then(e => {
             this._allowSql = true;
-        });;
+        });
     }
     
     _columnNameRenderer(col){
@@ -687,8 +750,7 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
             let colDef = this._selectedTableCols.get(columnName);
             if(colDef){
                 let colType = colDef.columnType.toLowerCase();
-            
-                if(colDef.binary){
+                if(colDef.binary && colType !== "jsonb" && colType !== "json"){
                     return this._renderBinaryCell(value, colType);
                 }else {
                     return this._renderTextCell(value, colType);
@@ -706,12 +768,26 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
             }else {
                 return html`<vaadin-icon style="color: var(--lumo-contrast-50pct);" title="${value}" icon="font-awesome-regular:square"></vaadin-icon>`;
             }
+        } else if(colType === "jsonb" || colType === "json"){
+            return html`${this._renderJsonContent(value)}`;
         } else {
             if(value.startsWith("http://") || value.startsWith("https://")){
                 return html`<a href="${value}" target="_blank">${value}</a>`;
-            }else{
+            }else if (typeof value === "string" && this._isJSON(value)) {
+                return this._renderJsonChars(value);
+            }else {
                 return html`<span>${value}</span>`;
             }
+        }
+    }
+    
+    _isJSON(str) {
+        if (typeof str !== "string") return false;
+        try {
+          const result = JSON.parse(str);
+          return result !== null && (typeof result === "object" || Array.isArray(result));
+        } catch {
+          return false;
         }
     }
     
@@ -723,7 +799,7 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
                 byteNumbers[i] = byteCharacters.charCodeAt(i);
             }
             const byteArray = new Uint8Array(byteNumbers);
-
+            
             const blob = new Blob([byteArray], { type: 'application/octet-stream' });
             const url = URL.createObjectURL(blob);
 
@@ -732,6 +808,39 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
             // Here try a normal render. Sometimes Java objects can render in String format (eg. UUID)
             return this._renderTextCell(value, colType);
         }
+    }
+    
+    _renderJsonColDialog(){
+        return html`
+            <vaadin-dialog
+              header-title="Json value"
+              .opened="${this._jsonColDialogOpened}"
+              @closed="${() => {
+                    this._jsonColDialogOpened = false;
+                    this._selectedJsonCol = null;
+              }}"
+              ${dialogRenderer(this._renderJsonColDialogContent, this._selectedJsonCol)}
+            ></vaadin-dialog>`;
+    }
+        
+    _renderJsonContent(value){
+        const byteCharacters = atob(value);
+        return this._renderJsonChars(byteCharacters);
+    }
+    
+    _renderJsonChars(value){
+        return html`<span style="cursor:pointer;" @click="${()=> this._showJsonColDialog(value)}">${value.substring(0, 20)}...</span>`;
+    }
+    
+    _showJsonColDialog(value){
+        
+        const parsed = JSON.parse(value);
+        this._selectedJsonCol = JSON.stringify(parsed, null, 2);
+        this._jsonColDialogOpened = true;
+    }
+    
+    _renderJsonColDialogContent(){
+        return html`<qui-themed-code-block content="${this._selectedJsonCol}" mode="json"></qui-themed-code-block>`;
     }
     
     _watch(){
@@ -762,7 +871,7 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
         this._fetchTableDefinitions();
         this._selectedTableIndex = event.detail.value;
         this._selectedTable = this._tables[this._selectedTableIndex];
-        this._clearSqlInput();
+        this._clearInput(false);
     }
     
     _previousPage(){
@@ -801,7 +910,7 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
                     notifier.showErrorMessage(jsonRpcResponse.result.error);
                 } else if (jsonRpcResponse.result.message){
                     notifier.showInfoMessage(jsonRpcResponse.result.message);
-                    this._clearSqlInput();
+                    this._clearInput(false);
                 } else {
                     this._currentDataSet = jsonRpcResponse.result;
                     this._currentNumberOfPages = this._getNumberOfPages();
@@ -840,16 +949,55 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
     }
     
     _executeClicked(){
-        let newValue = this.shadowRoot.getElementById('sql').getAttribute('value');
+        if(assistantState.current.isConfigured && this._englishToSQLEnabled){
+            this._executeClickedAI();
+        }else {
+            this._executeClickedSQL();
+        }    
+    }
+    
+    _executeClickedSQL(){
+        let newValue = this.shadowRoot.getElementById('sqlInput').getAttribute('value');
         this._executeSQL(newValue);
     }
     
-    _clearSqlInput(){
-        if(this._selectedTable){
-            if(this._appendSql){
-                this._executeSQL("select * from " + this._selectedTable.tableSchema + "." + this._selectedTable.tableName + " " + this._appendSql);
-            }else{
-                this._executeSQL("select * from " + this._selectedTable.tableSchema + "." + this._selectedTable.tableName);
+    _executeClickedAI(){
+        this._currentEnglish = this.shadowRoot.getElementById('assistantInput').value;
+        this._englishToSQLLoadingMessage = "Creating SQL from \"" + this._currentEnglish + "\"";
+        this._currentDataSet = null;
+        this._currentSQL = null;
+        
+        this.jsonRpc.englishToSQL({
+                                    datasource:this._selectedDataSource.name,
+                                    schema: this._selectedTable.tableSchema,
+                                    name: this._selectedTable.tableName,
+                                    english: this._currentEnglish
+                                }).then(jsonRpcResponse => {
+                                    if(jsonRpcResponse.result.error){
+                                        notifier.showErrorMessage(jsonRpcResponse.result.error);
+                                    } else {
+                                        let sql = jsonRpcResponse.result.sql;
+                                        this._englishToSQLLoadingMessage = "Using SQL \"" + sql + "\"";
+                                        notifier.showInfoMessage(sql);
+                                        this._executeSQL(sql);
+                                    }
+                                });
+
+
+        
+    }
+    
+    _clearInput(englishToSql){
+        if(englishToSql && assistantState.current.isConfigured){
+            this._currentEnglish = null;
+            this.shadowRoot.getElementById('assistantInput').value = '';
+        }else{
+            if(this._selectedTable){
+                if(this._appendSql){
+                    this._executeSQL("select * from " + this._selectedTable.tableSchema + "." + this._selectedTable.tableName + " " + this._appendSql);
+                }else{
+                    this._executeSQL("select * from " + this._selectedTable.tableSchema + "." + this._selectedTable.tableName);
+                }
             }
         }
     }
@@ -861,14 +1009,11 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
     _executeSQL(sql){
         this._currentSQL = sql.trim();
         this._executeCurrentSQL();
+        this._englishToSQLLoadingMessage = null;
     }
     
     _startsWithIgnoreCaseAndSpaces(str, searchString) {
         return str.trim().toLowerCase().startsWith(searchString.toLowerCase());
-    }
-    
-    hotReload(){
-        this._fetchTableDefinitions();
     }
     
     _isAllowedHostDatabase() {
@@ -877,20 +1022,6 @@ export class QwcAgroalDatasource extends observeState(QwcHotReloadElement) {
         try {
             if (jdbcUrl.startsWith("jdbc:h2:mem:") || jdbcUrl.startsWith("jdbc:h2:file:")) {
                 return true;
-            }
-
-            if (jdbcUrl.startsWith("jdbc:derby:memory:")) {
-                return true;
-            }
-
-            if (jdbcUrl.startsWith("jdbc:derby:")) {
-                const derbyUri = jdbcUrl.replace("jdbc:", "");
-                if (derbyUri.startsWith("localhost") || derbyUri.startsWith("127.0.0.1")) {
-                    return true;
-                }
-                if(this._allowedHost && this._allowedHost!=="" && derbyUri.startsWith(this._allowedHost)){
-                    return true;
-                }
             }
 
             const urlPattern = /\/\/([^:/?#]+)|@([^:/?#]+)/;

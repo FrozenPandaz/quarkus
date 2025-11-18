@@ -84,9 +84,11 @@ import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBundleBuil
 import io.quarkus.deployment.builditem.nativeimage.NativeImageSecurityProviderBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassConditionBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.RuntimeInitializedPackageBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ServiceProviderBuildItem;
 import io.quarkus.deployment.logging.LogCleanupFilterBuildItem;
 import io.quarkus.deployment.pkg.builditem.CurateOutcomeBuildItem;
+import io.quarkus.deployment.pkg.steps.NativeImageFutureDefault;
 import io.quarkus.deployment.pkg.steps.NativeOrNativeSourcesBuild;
 import io.quarkus.kafka.client.runtime.KafkaAdminClient;
 import io.quarkus.kafka.client.runtime.KafkaBindingConverter;
@@ -170,6 +172,7 @@ public class KafkaProcessor {
         log.produce(new LogCategoryBuildItem("org.apache.kafka.clients", Level.WARNING));
         log.produce(new LogCategoryBuildItem("org.apache.kafka.common.utils", Level.WARNING));
         log.produce(new LogCategoryBuildItem("org.apache.kafka.common.metrics", Level.WARNING));
+        log.produce(new LogCategoryBuildItem("org.apache.kafka.common.config", Level.WARNING));
         log.produce(new LogCategoryBuildItem("org.apache.kafka.common.telemetry", Level.WARNING));
     }
 
@@ -507,7 +510,7 @@ public class KafkaProcessor {
                         "org.apache.kafka.common.security.oauthbearer.internals.expiring.ExpiringCredentialRefreshingLogin")
                 // VerificationKeyResolver is value on static map in OAuthBearerValidatorCallbackHandler
                 .addRuntimeInitializedClass("org.apache.kafka.common.security.oauthbearer.OAuthBearerValidatorCallbackHandler")
-                .addRuntimeReinitializedClass("org.apache.kafka.shaded.com.google.protobuf.UnsafeUtil");
+                .addRuntimeInitializedClass("org.apache.kafka.shaded.com.google.protobuf.UnsafeUtil");
         return builder.build();
     }
 
@@ -527,6 +530,11 @@ public class KafkaProcessor {
                 .addBeanClass(KafkaAdminClient.class)
                 .setUnremovable()
                 .build();
+    }
+
+    @BuildStep(onlyIf = NativeImageFutureDefault.RunTimeInitializeSecurityProvider.class)
+    RuntimeInitializedPackageBuildItem runtimeInitializedClasses() {
+        return new RuntimeInitializedPackageBuildItem("org.apache.kafka.common.security.ssl");
     }
 
     // Kafka UI related stuff

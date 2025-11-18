@@ -45,17 +45,18 @@
         <version.jta>2.0.1</version.jta>
         <!-- main versions -->
         <version.gizmo>1.9.0</version.gizmo>
-        <version.jandex>3.4.0</version.jandex>
+        <version.jandex>3.5.2</version.jandex>
+        <version.gizmo2>2.0.0.Beta9</version.gizmo2>
         <version.jboss-logging>3.6.1.Final</version.jboss-logging>
-        <version.mutiny>2.9.4</version.mutiny>
+        <version.mutiny>3.0.1</version.mutiny>
         <version.bridger>1.6.Final</version.bridger>
-        <version.smallrye-common>2.13.8</version.smallrye-common>
+        <version.smallrye-common>2.14.0</version.smallrye-common>
         <!-- test versions -->
-        <version.assertj>3.27.4</version.assertj>
+        <version.assertj>3.27.6</version.assertj>
         <version.junit5>5.13.4</version.junit5>
-        <version.kotlin>2.2.10</version.kotlin>
+        <version.kotlin>2.2.21</version.kotlin>
         <version.kotlin-coroutines>1.10.2</version.kotlin-coroutines>
-        <version.mockito>5.19.0</version.mockito>
+        <version.mockito>5.20.0</version.mockito>
         <!-- TCK versions -->
         <version.arquillian>1.7.0.Final</version.arquillian>
         <version.atinject-tck>2.0.1</version.atinject-tck>
@@ -137,11 +138,21 @@
                 <artifactId>jandex</artifactId>
                 <version>${version.jandex}</version>
             </dependency>
+            <dependency>
+                <groupId>io.smallrye</groupId>
+                <artifactId>jandex-gizmo2</artifactId>
+                <version>${version.jandex}</version>
+            </dependency>
 
             <dependency>
                 <groupId>io.quarkus.gizmo</groupId>
                 <artifactId>gizmo</artifactId>
                 <version>${version.gizmo}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.quarkus.gizmo</groupId>
+                <artifactId>gizmo2</artifactId>
+                <version>${version.gizmo2}</version>
             </dependency>
 
             <dependency>
@@ -199,6 +210,13 @@
                 <groupId>io.quarkus.gizmo</groupId>
                 <artifactId>gizmo</artifactId>
                 <version>${version.gizmo}</version>
+                <type>test-jar</type>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.quarkus.gizmo</groupId>
+                <artifactId>gizmo2</artifactId>
+                <version>${version.gizmo2}</version>
                 <type>test-jar</type>
                 <scope>test</scope>
             </dependency>

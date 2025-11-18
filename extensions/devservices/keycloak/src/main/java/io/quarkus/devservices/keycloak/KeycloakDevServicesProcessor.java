@@ -1,5 +1,6 @@
 package io.quarkus.devservices.keycloak;
 
+import static io.quarkus.devservices.common.ConfigureUtil.getDefaultImageNameFor;
 import static io.quarkus.devservices.common.ContainerLocator.locateContainerWithLabels;
 import static io.quarkus.devservices.common.Labels.QUARKUS_DEV_SERVICE;
 import static io.quarkus.devservices.keycloak.KeycloakDevServicesConfigBuildItem.getKeycloakUrl;
@@ -406,7 +407,7 @@ public class KeycloakDevServicesProcessor {
                 capturedDevServicesConfiguration.shared(),
                 LaunchMode.current());
 
-        String imageName = capturedDevServicesConfiguration.imageName();
+        String imageName = capturedDevServicesConfiguration.imageName().orElseGet(() -> getDefaultImageNameFor("keycloak"));
         DockerImageName dockerImageName = DockerImageName.parse(imageName).asCompatibleSubstituteFor(imageName);
 
         final Supplier<RunningDevService> defaultKeycloakContainerSupplier = () -> {
@@ -543,7 +544,7 @@ public class KeycloakDevServicesProcessor {
 
             if (useSharedNetwork) {
                 if (keycloakX) {
-                    addEnv(KEYCLOAK_QUARKUS_HOSTNAME, "http://" + hostName + ":" + KEYCLOAK_PORT);
+                    addEnv(KEYCLOAK_QUARKUS_HOSTNAME, (isHttps() ? "https://" : "http://") + hostName + ":" + KEYCLOAK_PORT);
                 } else {
                     addEnv(KEYCLOAK_WILDFLY_FRONTEND_URL, "http://localhost:" + fixedExposedPort.getAsInt());
                 }
@@ -859,6 +860,7 @@ public class KeycloakDevServicesProcessor {
         realm.setAccessTokenLifespan(600);
         realm.setSsoSessionMaxLifespan(600);
         realm.setRefreshTokenMaxReuse(10);
+        realm.setRequiredActions(List.of());
 
         RolesRepresentation roles = new RolesRepresentation();
         List<RoleRepresentation> realmRoles = new ArrayList<>();
@@ -907,6 +909,8 @@ public class KeycloakDevServicesProcessor {
         user.setEnabled(true);
         user.setCredentials(new ArrayList<>());
         user.setRealmRoles(realmRoles);
+        user.setEmailVerified(true);
+        user.setRequiredActions(List.of());
 
         CredentialRepresentation credential = new CredentialRepresentation();
 

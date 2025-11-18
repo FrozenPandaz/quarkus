@@ -163,6 +163,12 @@ public interface OidcTenantConfig extends OidcClientCommonConfig {
         Optional<String> resource();
 
         /**
+         * Authorization server URL.
+         * 'quarkus.oidc.auth-server-url' property value is reported by default.
+         */
+        Optional<String> authorizationServer();
+
+        /**
          * Force a protected resource identifier HTTPS scheme.
          * This property is ignored if {@link #resource() is an absolute URL}
          */
@@ -649,6 +655,32 @@ public interface OidcTenantConfig extends OidcClientCommonConfig {
          */
         @ConfigDocDefault("query")
         Optional<ResponseMode> responseMode();
+
+        /**
+         * Supported cache control directives
+         */
+        enum CacheControl {
+            NO_STORE("no-store");
+
+            private String dir;
+
+            CacheControl(String dir) {
+                this.dir = dir;
+            }
+
+            String directive() {
+                return dir;
+            }
+        }
+
+        /**
+         * Set of cache-control directives that must be set when a new session cookie is created,
+         * either after a successful authorization code completion or token refresh.
+         * <p>
+         * Currently, only a `no-store` directive that prohibits caching the session cookie anywhere in the client request chain
+         * can be configured.
+         */
+        Optional<Set<CacheControl>> cacheControl();
 
         /**
          * The relative path for calculating a `redirect_uri` query parameter.

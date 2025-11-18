@@ -39,6 +39,8 @@ triage:
   discussions:
     monitoredCategories: [33575230]
   guardedBranches:
+    - ref: '3.27'
+      notify: [jmartisk, gsmet, gastaldi, rsvoboda, aloubyansky]
     - ref: '3.20'
       notify: [jmartisk, gsmet, gastaldi, rsvoboda, aloubyansky]
     - ref: '3.15'
@@ -99,7 +101,7 @@ triage:
     - id: jbang
       labels: [area/jbang]
       titleBody: "jbang"
-      notify: [quarkusio/devtools, iocanel]
+      notify: [quarkusio/devtools]
       directories:
         - "**/*JBang*"
         - "**/*jbang*"
@@ -314,7 +316,7 @@ triage:
     - id: spring
       labels: [area/spring]
       title: "spring"
-      notify: [geoand, aureamunoz]
+      notify: [geoand, aureamunoz, edeandrea]
       directories:
         - extensions/spring-
         - integration-tests/spring-
@@ -328,7 +330,7 @@ triage:
     - id: kubernetes
       labels: [area/kubernetes]
       titleBody: "kubernetes"
-      notify: [geoand, iocanel]
+      notify: [geoand]
       directories:
         - extensions/kubernetes/
         - extensions/kubernetes-client/
@@ -341,15 +343,22 @@ triage:
     - id: openshift
       labels: [area/kubernetes]
       titleBody: "openshift"
-      notify: [geoand, iocanel]
+      notify: [geoand]
     - id: knative
       labels: [area/kubernetes]
       titleBody: "knative"
-      notify: [geoand, iocanel]
-    - id: jib
-      labels: [area/container-image]
-      titleBody: "jib"
       notify: [geoand]
+    - id: container-image
+      labels: [area/container-image]
+      expression: |
+        matches("jib", titleBody)
+        || matches("container-image", titleBody)
+        || matches("docker", titleBody)
+        || matches("podman", titleBody)
+        || matches("buildpack", titleBody)
+      notify: [geoand, edeandrea]
+      directories:
+        - extensions/container-image
     - id: kafka
       labels: [area/kafka]
       notify: [cescoffier, ozangunalp, alesj]
@@ -459,7 +468,7 @@ triage:
       title: "\\b(cli)\\b"
       directories:
         - devtools/cli/
-      notify: [iocanel,ebullient]
+      notify: [ebullient]
     - id: picocli
       labels: [area/picocli]
       title: "picocli"
@@ -779,8 +788,5 @@ triage:
       labels: [area/virtual-threads]
       title: "(virtual.thread|RunOnVirtualThread)"
       notify: [cescoffier, ozangunalp]
-    - id: podman
-      labels: [env/podman]
-      title: "podman"
   qe:
     notify: [rsvoboda, mjurc]

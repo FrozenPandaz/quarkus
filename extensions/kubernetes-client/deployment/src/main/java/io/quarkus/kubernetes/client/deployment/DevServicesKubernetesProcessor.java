@@ -44,12 +44,11 @@ import com.dajudge.kindcontainer.client.config.UserSpec;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 
-import io.fabric8.kubernetes.api.model.*;
-import io.fabric8.kubernetes.api.model.apps.Deployment;
-import io.fabric8.kubernetes.api.model.apps.ReplicaSet;
-import io.fabric8.kubernetes.api.model.apps.StatefulSet;
-import io.fabric8.kubernetes.client.*;
+import io.fabric8.kubernetes.api.model.HasMetadata;
 import io.fabric8.kubernetes.client.Config;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.KubernetesClientBuilder;
+import io.fabric8.kubernetes.client.readiness.Readiness;
 import io.quarkus.deployment.Feature;
 import io.quarkus.deployment.IsDevServicesSupportedByLaunchMode;
 import io.quarkus.deployment.annotations.BuildProducer;
@@ -184,8 +183,8 @@ public class DevServicesKubernetesProcessor {
             KubernetesDevServiceInfoBuildItem kubernetesDevServiceInfoBuildItem,
             KubernetesClientBuildConfig kubernetesClientBuildTimeConfig) {
         if (kubernetesDevServiceInfoBuildItem == null) {
-            // Gracefully return in case the Kubernetes dev service could not be spun up.
-            log.warn("Cannot apply manifests because the Kubernetes dev service is not running");
+            // Gracefully return in case the Kubernetes dev service could not be found
+            log.error("Cannot apply manifests because the Kubernetes dev service is not running");
             return;
         }
 
@@ -218,7 +217,7 @@ public class DevServicesKubernetesProcessor {
                             resources.forEach(resource -> {
                                 client.resource(resource).create();
 
-                                if (isReadinessApplicable(resource)) {
+                                if (Readiness.getInstance().isReadinessApplicable(resource)) {
                                     resourcesWithReadiness.add(resource);
                                 }
                             });
@@ -240,17 +239,6 @@ public class DevServicesKubernetesProcessor {
         } catch (Exception e) {
             log.error("Failed to create Kubernetes client while trying to apply manifests.", e);
         }
-    }
-
-    private boolean isReadinessApplicable(HasMetadata item) {
-        return (item instanceof Deployment ||
-                item instanceof io.fabric8.kubernetes.api.model.extensions.Deployment ||
-                item instanceof ReplicaSet ||
-                item instanceof Pod ||
-                item instanceof ReplicationController ||
-                item instanceof Endpoints ||
-                item instanceof Node ||
-                item instanceof StatefulSet);
     }
 
     private InputStream getManifestStream(String manifestPath) throws IOException {
@@ -367,6 +355,13 @@ public class DevServicesKubernetesProcessor {
                     getKubernetesClientConfigFromKubeConfig(kubeConfig));
         };
 
+        maybeContainerAddress.ifPresent(containerAddress -> {
+            devServicesKube
+                    .produce(new KubernetesDevServiceInfoBuildItem(
+                            KubeConfigUtils.serializeKubeConfig(getKubeconfigFromRunningContainer(containerAddress)),
+                            containerAddress.getId()));
+        });
+
         return maybeContainerAddress
                 .map(containerAddress -> new RunningDevService(Feature.KUBERNETES_CLIENT.getName(),
                         containerAddress.getId(),
@@ -425,6 +420,13 @@ public class DevServicesKubernetesProcessor {
         return container.getKubeconfig();
     }
 
+    private KubeConfig getKubeconfigFromRunningContainer(ContainerAddress containerAddress) {
+        var dockerClient = DockerClientFactory.lazyClient();
+        var container = new RunningContainer(dockerClient, containerAddress);
+
+        return container.getKubeconfigFromContainer();
+    }
+
     private KubernetesDevServiceCfg getConfiguration(KubernetesClientBuildConfig cfg) {
         KubernetesDevServicesBuildTimeConfig devServicesConfig = cfg.devservices();
         return new KubernetesDevServiceCfg(devServicesConfig);
@@ -468,9 +470,13 @@ public class DevServicesKubernetesProcessor {
                 return true;
             if (!(obj instanceof KubernetesDevServiceCfg other))
                 return false;
-            return devServicesEnabled == other.devServicesEnabled && flavor == other.flavor
-                    && Objects.equals(apiVersion, other.apiVersion) && overrideKubeconfig == other.overrideKubeconfig
-                    && shared == other.shared && Objects.equals(serviceName, other.serviceName)
+            return devServicesEnabled == other.devServicesEnabled
+                    && Objects.equals(imageName, other.imageName)
+                    && Objects.equals(flavor, other.flavor)
+                    && Objects.equals(apiVersion, other.apiVersion)
+                    && overrideKubeconfig == other.overrideKubeconfig
+                    && shared == other.shared
+                    && Objects.equals(serviceName, other.serviceName)
                     && Objects.equals(containerEnv, other.containerEnv);
         }
     }
@@ -496,25 +502,29 @@ public class DevServicesKubernetesProcessor {
             this.containerInfo = dockerClient.inspectContainerCmd(getContainerId()).exec();
         }
 
-        public Map<String, String> getKubeconfig() {
+        private KubeConfig getKubeconfigFromContainer() {
             var image = getContainerInfo().getConfig().getImage();
             if (image.contains("rancher/k3s")) {
-                return getKubernetesClientConfigFromKubeConfig(
-                        KubeConfigUtils.parseKubeConfig(KubeConfigUtils.replaceServerInKubeconfig(containerAddress.getUrl(),
-                                getFileContentFromContainer(K3S_KUBECONFIG))));
+                return KubeConfigUtils
+                        .parseKubeConfig(KubeConfigUtils.replaceServerInKubeconfig("https://" + containerAddress.getUrl(),
+                                getFileContentFromContainer(K3S_KUBECONFIG)));
             } else if (image.contains("kindest/node")) {
-                return getKubernetesClientConfigFromKubeConfig(
-                        KubeConfigUtils.parseKubeConfig(KubeConfigUtils.replaceServerInKubeconfig(containerAddress.getUrl(),
-                                getFileContentFromContainer(KIND_KUBECONFIG))));
+                return KubeConfigUtils
+                        .parseKubeConfig(KubeConfigUtils.replaceServerInKubeconfig("https://" + containerAddress.getUrl(),
+                                getFileContentFromContainer(KIND_KUBECONFIG)));
             } else if (image.contains("k8s.gcr.io/kube-apiserver") ||
                     image.contains("registry.k8s.io/kube-apiserver")) {
-                return getKubernetesClientConfigFromKubeConfig(getKubeconfigFromApiContainer(containerAddress.getUrl()));
+                return getKubeconfigFromApiContainer(containerAddress.getUrl());
             }
 
             // this can happen only if the user manually start
             // a DEV_SERVICE_LABEL labeled container with an invalid image name
             throw new RuntimeException("The container with the label '" + DEV_SERVICE_LABEL
                     + "' is not compatible with Dev Services for Kubernetes. Stop it or disable Dev Services for Kubernetes.");
+        }
+
+        public Map<String, String> getKubeconfig() {
+            return getKubernetesClientConfigFromKubeConfig(getKubeconfigFromContainer());
         }
 
         protected KubeConfig getKubeconfigFromApiContainer(final String url) {

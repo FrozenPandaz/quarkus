@@ -51,11 +51,12 @@ public class JsonRpcRequestCreator {
             String mappedName = (String) params.remove("name");
             Map mappedParams = (Map) params.remove("arguments");
 
-            JsonRpcRequest mapped = new JsonRpcRequest();
+            JsonRpcRequest mapped = new JsonRpcRequest(this.jsonMapper);
             mapped.setId(jsonRpcRequest.getId());
             mapped.setJsonrpc(jsonRpcRequest.getJsonrpc());
             mapped.setMethod(mappedName);
-            mapped.setParams(mappedParams);
+            if (mappedParams != null && !mappedParams.isEmpty())
+                mapped.setParams(mappedParams);
 
             return mapped;
         }
@@ -67,7 +68,7 @@ public class JsonRpcRequestCreator {
     }
 
     private JsonRpcRequest createWithFilter(JsonObject jsonObject, String... filter) {
-        JsonRpcRequest jsonRpcRequest = new JsonRpcRequest();
+        JsonRpcRequest jsonRpcRequest = new JsonRpcRequest(this.jsonMapper);
         if (jsonObject.containsKey(ID)) {
             jsonRpcRequest.setId(jsonObject.getInteger(ID));
         }
@@ -76,7 +77,7 @@ public class JsonRpcRequestCreator {
         }
         jsonRpcRequest.setMethod(jsonObject.getString(METHOD));
         if (jsonObject.containsKey(PARAMS)) {
-            Map map = jsonObject.getJsonObject(PARAMS).getMap();
+            Map<String, Object> map = jsonObject.getJsonObject(PARAMS).getMap();
             if (filter != null) {
                 for (String p : filter) {
                     map.remove(p);

@@ -63,9 +63,11 @@ import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.deployment.builditem.ConfigClassBuildItem;
 import io.quarkus.deployment.builditem.ConfigMappingBuildItem;
 import io.quarkus.deployment.builditem.ConfigPropertiesBuildItem;
+import io.quarkus.deployment.builditem.ConfigurationBuildItem;
 import io.quarkus.deployment.builditem.GeneratedClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveMethodBuildItem;
+import io.quarkus.deployment.pkg.NativeConfig;
 import io.quarkus.deployment.recording.RecorderContext;
 import io.quarkus.hibernate.validator.spi.AdditionalConstrainedClassBuildItem;
 import io.smallrye.config.ConfigMappings.ConfigClass;
@@ -261,6 +263,8 @@ public class ConfigBuildStep {
 
     @BuildStep
     void generateConfigProperties(
+            NativeConfig nativeConfig,
+            ConfigurationBuildItem configItem,
             CombinedIndexBuildItem combinedIndex,
             BuildProducer<GeneratedClassBuildItem> generatedClasses,
             BuildProducer<ReflectiveClassBuildItem> reflectiveClasses,
@@ -268,42 +272,32 @@ public class ConfigBuildStep {
             BuildProducer<ConfigClassBuildItem> configClasses,
             BuildProducer<AdditionalConstrainedClassBuildItem> additionalConstrainedClasses) {
 
-        processConfigClasses(combinedIndex, generatedClasses, reflectiveClasses, reflectiveMethods, configClasses,
-                additionalConstrainedClasses, MP_CONFIG_PROPERTIES_NAME);
+        Map<String, GeneratedClassBuildItem> generatedConfigClasses = new HashMap<>();
+        processConfigClasses(nativeConfig, configItem, combinedIndex, generatedConfigClasses, reflectiveClasses,
+                reflectiveMethods,
+                configClasses, additionalConstrainedClasses, MP_CONFIG_PROPERTIES_NAME);
+
+        for (GeneratedClassBuildItem generatedConfigClass : generatedConfigClasses.values()) {
+            generatedClasses.produce(generatedConfigClass);
+        }
     }
 
     @BuildStep
     void registerConfigMappingsBean(
             BeanRegistrationPhaseBuildItem beanRegistration,
             List<ConfigClassBuildItem> configClasses,
-            CombinedIndexBuildItem combinedIndex,
             BuildProducer<BeanConfiguratorBuildItem> beanConfigurator) {
 
         if (configClasses.isEmpty()) {
             return;
         }
 
-        Set<ConfigClassBuildItem> configMappings = new HashSet<>();
-
-        // Add beans for all unremovable mappings
-        for (ConfigClassBuildItem configClass : configClasses) {
-            if (configClass.getConfigClass().isAnnotationPresent(Unremovable.class)) {
-                configMappings.add(configClass);
-            }
-        }
-
-        // Add beans for all injection points
-        Map<Type, ConfigClassBuildItem> configMappingTypes = configClassesToTypesMap(configClasses, MAPPING);
-        for (InjectionPointInfo injectionPoint : beanRegistration.getInjectionPoints()) {
-            Type type = Type.create(injectionPoint.getRequiredType().name(), Type.Kind.CLASS);
-            ConfigClassBuildItem configClass = configMappingTypes.get(type);
-            if (configClass != null) {
-                configMappings.add(configClass);
-            }
-        }
-
         // Generate the mappings beans
-        for (ConfigClassBuildItem configClass : configMappings) {
+        for (ConfigClassBuildItem configClass : configClasses) {
+            if (!configClass.isMapping()) {
+                continue;
+            }
+
             BeanConfigurator<Object> bean = beanRegistration.getContext()
                     .configure(configClass.getConfigClass())
                     .types(configClass.getTypes().toArray(new Type[] {}))
@@ -324,41 +318,35 @@ public class ConfigBuildStep {
     void registerConfigPropertiesBean(
             BeanRegistrationPhaseBuildItem beanRegistration,
             List<ConfigClassBuildItem> configClasses,
-            CombinedIndexBuildItem combinedIndex,
             BuildProducer<BeanConfiguratorBuildItem> beanConfigurator) {
 
         if (configClasses.isEmpty()) {
             return;
         }
 
-        Map<Type, ConfigClassBuildItem> configPropertiesTypes = configClassesToTypesMap(configClasses, PROPERTIES);
-        Set<ConfigClassBuildItem> configProperties = new HashSet<>();
-        for (InjectionPointInfo injectionPoint : beanRegistration.getInjectionPoints()) {
-            AnnotationInstance instance = injectionPoint.getRequiredQualifier(MP_CONFIG_PROPERTIES_NAME);
-            if (instance == null) {
+        // Generate the mappings beans
+        for (ConfigClassBuildItem configClass : configClasses) {
+            if (!configClass.isProperties()) {
                 continue;
             }
 
-            Type type = Type.create(injectionPoint.getRequiredType().name(), Type.Kind.CLASS);
-            ConfigClassBuildItem configClass = configPropertiesTypes.get(type);
-            if (configClass != null) {
-                configProperties.add(configClass);
-            }
-        }
+            BeanConfigurator<Object> bean = beanRegistration.getContext()
+                    .configure(configClass.getConfigClass())
+                    .types(configClass.getTypes().toArray(new Type[] {}))
+                    .addQualifier(create(MP_CONFIG_PROPERTIES_NAME, null,
+                            new AnnotationValue[] {
+                                    createStringValue("prefix", configClass.getPrefix())
+                            }))
+                    .creator(ConfigMappingCreator.class)
+                    .addInjectionPoint(ClassType.create(DotNames.INJECTION_POINT))
+                    .param("type", configClass.getConfigClass())
+                    .param("prefix", configClass.getPrefix());
 
-        for (ConfigClassBuildItem configClass : configProperties) {
-            beanConfigurator.produce(new BeanConfiguratorBuildItem(
-                    beanRegistration.getContext()
-                            .configure(configClass.getConfigClass())
-                            .types(configClass.getTypes().toArray(new Type[] {}))
-                            .addQualifier(create(MP_CONFIG_PROPERTIES_NAME, null,
-                                    new AnnotationValue[] {
-                                            createStringValue("prefix", configClass.getPrefix())
-                                    }))
-                            .creator(ConfigMappingCreator.class)
-                            .addInjectionPoint(ClassType.create(DotNames.INJECTION_POINT))
-                            .param("type", configClass.getConfigClass())
-                            .param("prefix", configClass.getPrefix())));
+            if (configClass.getConfigClass().isAnnotationPresent(Unremovable.class)) {
+                bean.unremovable();
+            }
+
+            beanConfigurator.produce(new BeanConfiguratorBuildItem(bean));
         }
     }
 

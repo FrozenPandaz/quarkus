@@ -1,10 +1,15 @@
 package io.quarkus.hibernate.reactive.panache.common.runtime;
 
+import static io.quarkus.hibernate.orm.runtime.PersistenceUnitUtil.DEFAULT_PERSISTENCE_UNIT_NAME;
+
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import jakarta.persistence.LockModeType;
@@ -19,6 +24,17 @@ import io.quarkus.panache.hibernate.common.runtime.PanacheJpaUtil;
 import io.smallrye.mutiny.Uni;
 
 public abstract class AbstractJpaOperations<PanacheQueryType> {
+    private static final Map<String, String> entityToPersistenceUnit = new HashMap<>();
+
+    // Putting synchronized here because fields involved were marked as volatile initially,
+    // so I expect recorders can be called concurrently?
+    public static void addEntityTypesToPersistenceUnit(Map<String, String> map) {
+        // Note: this may be called multiple times if an app uses both Java and Kotlin.
+        // We don't really test what happens if entities are defined both in Java and Kotlin at the moment,
+        // so we mostly care about the case where this gets called once with an empty map, and once with a non-empty map:
+        // in that case, we don't want the empty map to erase the other one.
+        entityToPersistenceUnit.putAll(map);
+    }
 
     // FIXME: make it configurable?
     static final long TIMEOUT_MS = 5000;
@@ -34,7 +50,7 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
     // Instance methods
 
     public Uni<Void> persist(Object entity) {
-        return persist(getSession(), entity);
+        return persist(getSession(entity.getClass()), entity);
     }
 
     public Uni<Void> persist(Uni<Mutiny.Session> sessionUni, Object entity) {
@@ -67,20 +83,38 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
     }
 
     public Uni<Void> persist(Object... entities) {
-        return getSession().chain(session -> session.persistAll(entities));
+        Map<String, List<Object>> sessions = Arrays.stream(entities)
+                .collect(Collectors.groupingBy(e -> entityToPersistenceUnit.get(e.getClass().getName())));
+
+        List<Uni<Void>> results = new ArrayList<>();
+        for (Entry<String, List<Object>> entry : sessions.entrySet()) {
+            results.add(getSession(entry.getKey()).chain(session -> session.persistAll(entry.getValue().toArray())));
+        }
+
+        return Uni.combine().all().unis(results).discardItems();
     }
 
     public Uni<Void> delete(Object entity) {
-        return getSession().chain(session -> session.remove(entity));
+        return getSession(entity.getClass()).chain(session -> session.remove(entity));
     }
 
     public boolean isPersistent(Object entity) {
-        Mutiny.Session current = SessionOperations.getCurrentSession();
-        return current != null ? current.contains(entity) : false;
+        Session currentSession = getCurrentSession(entity.getClass());
+        if (currentSession == null) {
+            // No active session so object is surely non-persistent
+            return false;
+        }
+
+        return currentSession.contains(entity);
     }
 
-    public Uni<Void> flush() {
-        return getSession().chain(Session::flush);
+    public Session getCurrentSession(Class<?> entityClass) {
+        String persistenceUnitName = entityToPersistenceUnit.get(entityClass.getName());
+        return SessionOperations.getCurrentSession(persistenceUnitName);
+    }
+
+    public Uni<Void> flush(Object entity) {
+        return getSession(entity.getClass()).chain(Session::flush);
     }
 
     public int paramCount(Object[] params) {
@@ -95,11 +129,11 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
     // Queries
 
     public Uni<?> findById(Class<?> entityClass, Object id) {
-        return getSession().chain(session -> session.find(entityClass, id));
+        return getSession(entityClass).chain(session -> session.find(entityClass, id));
     }
 
     public Uni<?> findById(Class<?> entityClass, Object id, LockModeType lockModeType) {
-        return getSession()
+        return getSession(entityClass)
                 .chain(session -> session.find(entityClass, id, LockModeConverter.convertToLockMode(lockModeType)));
     }
 
@@ -108,7 +142,7 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
     }
 
     public PanacheQueryType find(Class<?> entityClass, String panacheQuery, Sort sort, Object... params) {
-        Uni<Mutiny.Session> session = getSession();
+        Uni<Mutiny.Session> session = getSession(entityClass);
         if (PanacheJpaUtil.isNamedQuery(panacheQuery)) {
             String namedQuery = panacheQuery.substring(1);
             if (sort != null) {
@@ -128,7 +162,7 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
     }
 
     public PanacheQueryType find(Class<?> entityClass, String panacheQuery, Sort sort, Map<String, Object> params) {
-        Uni<Mutiny.Session> session = getSession();
+        Uni<Mutiny.Session> session = getSession(entityClass);
         if (PanacheJpaUtil.isNamedQuery(panacheQuery)) {
             String namedQuery = panacheQuery.substring(1);
             if (sort != null) {
@@ -177,13 +211,13 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
 
     public PanacheQueryType findAll(Class<?> entityClass) {
         String query = "FROM " + PanacheJpaUtil.getEntityName(entityClass);
-        Uni<Mutiny.Session> session = getSession();
+        Uni<Mutiny.Session> session = getSession(entityClass);
         return createPanacheQuery(session, query, null, null, null);
     }
 
     public PanacheQueryType findAll(Class<?> entityClass, Sort sort) {
         String query = "FROM " + PanacheJpaUtil.getEntityName(entityClass);
-        Uni<Mutiny.Session> session = getSession();
+        Uni<Mutiny.Session> session = getSession(entityClass);
         return createPanacheQuery(session, query, null, PanacheJpaUtil.toOrderBy(sort), null);
     }
 
@@ -196,7 +230,7 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
     }
 
     public Uni<Long> count(Class<?> entityClass) {
-        return getSession()
+        return getSession(entityClass)
                 .chain(session -> session
                         .createSelectionQuery("FROM " + PanacheJpaUtil.getEntityName(entityClass), entityClass)
                         .getResultCount());
@@ -206,13 +240,13 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
     public Uni<Long> count(Class<?> entityClass, String panacheQuery, Object... params) {
 
         if (PanacheJpaUtil.isNamedQuery(panacheQuery))
-            return (Uni) getSession().chain(session -> {
+            return (Uni) getSession(entityClass).chain(session -> {
                 String namedQueryName = panacheQuery.substring(1);
                 NamedQueryUtil.checkNamedQuery(entityClass, namedQueryName);
                 return bindParameters(session.createNamedQuery(namedQueryName, Long.class), params).getSingleResult();
             });
 
-        return getSession().chain(session -> bindParameters(
+        return getSession(entityClass).chain(session -> bindParameters(
                 session.createSelectionQuery(PanacheJpaUtil.createQueryForCount(entityClass, panacheQuery, paramCount(params)),
                         Object.class),
                 params).getResultCount())
@@ -223,13 +257,13 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
     public Uni<Long> count(Class<?> entityClass, String panacheQuery, Map<String, Object> params) {
 
         if (PanacheJpaUtil.isNamedQuery(panacheQuery))
-            return getSession().chain(session -> {
+            return getSession(entityClass).chain(session -> {
                 String namedQueryName = panacheQuery.substring(1);
                 NamedQueryUtil.checkNamedQuery(entityClass, namedQueryName);
                 return bindParameters(session.createNamedQuery(namedQueryName, Long.class), params).getSingleResult();
             });
 
-        return getSession().chain(session -> bindParameters(
+        return getSession(entityClass).chain(session -> bindParameters(
                 session.createSelectionQuery(PanacheJpaUtil.createQueryForCount(entityClass, panacheQuery, paramCount(params)),
                         Object.class),
                 params).getResultCount())
@@ -258,7 +292,7 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
     }
 
     public Uni<Long> deleteAll(Class<?> entityClass) {
-        return getSession().chain(
+        return getSession(entityClass).chain(
                 session -> session.createMutationQuery("DELETE FROM " + PanacheJpaUtil.getEntityName(entityClass))
                         .executeUpdate()
                         .map(Integer::longValue));
@@ -272,20 +306,20 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
                     if (entity == null) {
                         return Uni.createFrom().item(false);
                     }
-                    return getSession().chain(session -> session.remove(entity).map(v -> true));
+                    return getSession(entityClass).chain(session -> session.remove(entity).map(v -> true));
                 });
     }
 
     public Uni<Long> delete(Class<?> entityClass, String panacheQuery, Object... params) {
 
         if (PanacheJpaUtil.isNamedQuery(panacheQuery))
-            return getSession().chain(session -> {
+            return getSession(entityClass).chain(session -> {
                 String namedQueryName = panacheQuery.substring(1);
                 NamedQueryUtil.checkNamedQuery(entityClass, namedQueryName);
                 return bindParameters(session.createNamedQuery(namedQueryName), params).executeUpdate().map(Integer::longValue);
             });
 
-        return getSession().chain(session -> bindParameters(
+        return getSession(entityClass).chain(session -> bindParameters(
                 session.createMutationQuery(PanacheJpaUtil.createDeleteQuery(entityClass, panacheQuery, paramCount(params))),
                 params)
                 .executeUpdate().map(Integer::longValue))
@@ -296,13 +330,13 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
     public Uni<Long> delete(Class<?> entityClass, String panacheQuery, Map<String, Object> params) {
 
         if (PanacheJpaUtil.isNamedQuery(panacheQuery))
-            return getSession().chain(session -> {
+            return getSession(entityClass).chain(session -> {
                 String namedQueryName = panacheQuery.substring(1);
                 NamedQueryUtil.checkNamedQuery(entityClass, namedQueryName);
                 return bindParameters(session.createNamedQuery(namedQueryName), params).executeUpdate().map(Integer::longValue);
             });
 
-        return getSession().chain(session -> bindParameters(
+        return getSession(entityClass).chain(session -> bindParameters(
                 session.createMutationQuery(PanacheJpaUtil.createDeleteQuery(entityClass, panacheQuery, paramCount(params))),
                 params)
                 .executeUpdate().map(Integer::longValue))
@@ -314,7 +348,7 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
         return delete(entityClass, query, params.map());
     }
 
-    public IllegalStateException implementationInjectionMissing() {
+    public static IllegalStateException implementationInjectionMissing() {
         return new IllegalStateException(
                 "This method is normally automatically overridden in subclasses: did you forget to annotate your entity with @Entity?");
     }
@@ -322,7 +356,7 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
     public Uni<Integer> executeUpdate(Class<?> entityClass, String panacheQuery, Object... params) {
 
         if (PanacheJpaUtil.isNamedQuery(panacheQuery))
-            return (Uni) getSession().chain(session -> {
+            return (Uni) getSession(entityClass).chain(session -> {
                 String namedQueryName = panacheQuery.substring(1);
                 NamedQueryUtil.checkNamedQuery(entityClass, namedQueryName);
                 return bindParameters(session.createNamedQuery(namedQueryName), params).executeUpdate();
@@ -337,7 +371,7 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
     public Uni<Integer> executeUpdate(Class<?> entityClass, String panacheQuery, Map<String, Object> params) {
 
         if (PanacheJpaUtil.isNamedQuery(panacheQuery))
-            return (Uni) getSession().chain(session -> {
+            return (Uni) getSession(entityClass).chain(session -> {
                 String namedQueryName = panacheQuery.substring(1);
                 NamedQueryUtil.checkNamedQuery(entityClass, namedQueryName);
                 return bindParameters(session.createNamedQuery(namedQueryName), params).executeUpdate();
@@ -364,8 +398,18 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
     //
     // Static helpers
 
-    public static Uni<Mutiny.Session> getSession() {
-        return SessionOperations.getSession();
+    public Uni<Mutiny.Session> getSession() {
+        return getSession(DEFAULT_PERSISTENCE_UNIT_NAME);
+    }
+
+    public Uni<Mutiny.Session> getSession(Class<?> clazz) {
+        String className = clazz.getName();
+        String persistenceUnitName = entityToPersistenceUnit.get(className);
+        return getSession(persistenceUnitName);
+    }
+
+    public Uni<Mutiny.Session> getSession(String persistenceUnitName) {
+        return SessionOperations.getSession(persistenceUnitName);
     }
 
     public static Mutiny.Query<?> bindParameters(Mutiny.Query<?> query, Object[] params) {
@@ -395,13 +439,21 @@ public abstract class AbstractJpaOperations<PanacheQueryType> {
         return query;
     }
 
-    public static Uni<Integer> executeUpdate(String query, Object... params) {
-        return getSession().chain(session -> bindParameters(session.createMutationQuery(query), params)
-                .executeUpdate());
+    /**
+     * Execute update on default persistence unit
+     */
+    public Uni<Integer> executeUpdate(String query, Object... params) {
+        return getSession(DEFAULT_PERSISTENCE_UNIT_NAME)
+                .chain(session -> bindParameters(session.createMutationQuery(query), params)
+                        .executeUpdate());
     }
 
-    public static Uni<Integer> executeUpdate(String query, Map<String, Object> params) {
-        return getSession().chain(session -> bindParameters(session.createMutationQuery(query), params)
-                .executeUpdate());
+    /**
+     * Execute update on default persistence unit
+     */
+    public Uni<Integer> executeUpdate(String query, Map<String, Object> params) {
+        return getSession(DEFAULT_PERSISTENCE_UNIT_NAME)
+                .chain(session -> bindParameters(session.createMutationQuery(query), params)
+                        .executeUpdate());
     }
 }

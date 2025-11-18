@@ -139,8 +139,8 @@ public class AbstractJvmQuarkusTestExtension extends AbstractQuarkusTestWithCont
             return ConditionEvaluationResult.enabled("Quarkus Test Profile tags only affect classes");
         }
 
-        // At this point, the TCCL is usually the FacadeClassLoader, but sometimes it's a deployment classloader (for multimodule tests), or the runtime classloader (for nested tests)
-        // Getting back to the FacadeClassLoader is non-trivial. We can't use the singleton on the class, because we will be accessing it from different classloaders.
+        // At this point, the TCCL is sometimes a deployment classloader (for multimodule tests), or the runtime classloader (for nested tests), and sometimes a FacadeClassLoader in continuous cases
+        // Getting back to a FacadeClassLoader is non-trivial. We can't use the singleton on the class, because we will be accessing it from different classloaders.
         // We can't have a hook back from the runtime classloader to the facade classloader, because
         // when evaluating execution conditions for native tests, the test will have been loaded with the system classloader, not the runtime classloader.
         // The one classloader we can reliably get to when evaluating test execution is the system classloader, so hook our config on that.
@@ -192,15 +192,17 @@ public class AbstractJvmQuarkusTestExtension extends AbstractQuarkusTestWithCont
 
             }
             log.debug("Underlying exception: " + e);
-            log.debug("Thread Context Classloader: " + Thread.currentThread().getContextClassLoader());
-            log.debug("The class of the class we use for mapping is " + TestConfig.class.getClassLoader());
+            log.debug("Thread Context ClassLoader: " + Thread.currentThread().getContextClassLoader());
+            log.debug("The classloader of the class we use for mapping is " + TestConfig.class.getClassLoader());
             String message = isVSCode || isMaybeVSCode
                     ? "Could not execute test class because it was loaded with the wrong classloader by the VS Code test runner. Try running test methods individually instead."
                     : isEclipse
                             ? "Could not execute test class because it was loaded with the wrong classloader by the Eclipse test runner. Try running test methods individually, or edit the run configuration and add `-uniqueId [engine:junit-jupiter]/[class:"
                                     + context.getRequiredTestClass().getName()
                                     + "]` in the program arguments. "
-                            : "Internal error: Test class was loaded with an unexpected classloader or the thread context classloader was incorrect.";
+                            : "Internal error: Test class was loaded with an unexpected classloader ("
+                                    + TestConfig.class.getClassLoader() + ") or the thread context classloader ("
+                                    + Thread.currentThread().getContextClassLoader() + ") was incorrect.";
             throw new IllegalStateException(message, e);
         } finally {
             if (!isFlatClasspath) {

@@ -1,8 +1,10 @@
 package io.quarkus.deployment.util;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 import org.eclipse.microprofile.config.ConfigProvider;
@@ -10,6 +12,7 @@ import org.jboss.logging.Logger;
 
 import io.smallrye.common.os.OS;
 import io.smallrye.common.process.ProcessBuilder;
+import io.smallrye.common.process.ProcessUtil;
 import io.smallrye.config.SmallRyeConfig;
 
 public final class ContainerRuntimeUtil {
@@ -50,7 +53,19 @@ public final class ContainerRuntimeUtil {
                         : List.of(ContainerRuntime.DOCKER, ContainerRuntime.PODMAN));
     }
 
+    public static ContainerRuntime detectContainerRuntime(boolean required, boolean silent,
+            ContainerRuntime... orderToCheckRuntimes) {
+        return detectContainerRuntime(required, silent,
+                ((orderToCheckRuntimes != null) && (orderToCheckRuntimes.length > 0)) ? Arrays.asList(orderToCheckRuntimes)
+                        : List.of(ContainerRuntime.DOCKER, ContainerRuntime.PODMAN));
+    }
+
     public static ContainerRuntime detectContainerRuntime(boolean required, List<ContainerRuntime> orderToCheckRuntimes) {
+        return detectContainerRuntime(required, false, orderToCheckRuntimes);
+    }
+
+    public static ContainerRuntime detectContainerRuntime(boolean required, boolean silent,
+            List<ContainerRuntime> orderToCheckRuntimes) {
         ContainerRuntime containerRuntime = loadContainerRuntimeFromSystemProperty();
         if ((containerRuntime != null) && orderToCheckRuntimes.contains(containerRuntime)) {
             return containerRuntime;
@@ -61,15 +76,15 @@ public final class ContainerRuntimeUtil {
             storeContainerRuntimeInSystemProperty(ContainerRuntime.UNAVAILABLE);
 
             if (required) {
-                throw new IllegalStateException("No container runtime was found. "
-                        + "Make sure you have either Docker or Podman installed in your environment.");
+                throw new IllegalStateException("No container CLI was found. "
+                        + "Make sure you have either Docker or Podman CLI installed in your environment.");
             }
 
             return ContainerRuntime.UNAVAILABLE;
         }
 
         // we have a working container environment, let's resolve it fully
-        containerRuntime = fullyResolveContainerRuntime(containerRuntimeEnvironment);
+        containerRuntime = fullyResolveContainerRuntime(containerRuntimeEnvironment, silent);
 
         storeContainerRuntimeInSystemProperty(containerRuntime);
 
@@ -131,10 +146,18 @@ public final class ContainerRuntimeUtil {
         return ContainerRuntime.UNAVAILABLE;
     }
 
-    private static ContainerRuntime fullyResolveContainerRuntime(ContainerRuntime containerRuntimeEnvironment) {
+    private static ContainerRuntime fullyResolveContainerRuntime(ContainerRuntime containerRuntimeEnvironment,
+            boolean silent) {
         String execName = containerRuntimeEnvironment.getExecutableName();
         try {
-            return ProcessBuilder.newBuilder(execName)
+            Optional<Path> execPath = ProcessUtil.pathOfCommand(Path.of(execName));
+            if (execPath.isEmpty()) {
+                // this should never happen as we have detected the presence of the Docker/Podman CLI before
+                throw new IllegalStateException(
+                        String.format("Unable to find command: %s in $PATH: %s", execName, ProcessUtil.searchPath()));
+            }
+
+            return ProcessBuilder.newBuilder(execPath.get())
                     .arguments("info")
                     .output().gatherOnFail(true).processWith(br -> {
                         boolean rootless = false;
@@ -174,9 +197,11 @@ public final class ContainerRuntimeUtil {
                     })
                     .run();
         } catch (Exception e) {
-            log.warnf("Command \"%s\" failed. "
-                    + "Rootless container runtime detection might not be reliable or the container service is not running at all.",
-                    execName);
+            if (!silent) {
+                log.warnf("Command \"%s\" failed. "
+                        + "Rootless container runtime detection might not be reliable or the container service is not running at all.",
+                        execName);
+            }
             return ContainerRuntime.UNAVAILABLE;
         }
     }
@@ -203,14 +228,20 @@ public final class ContainerRuntimeUtil {
 
     private static String getVersionOutputFor(ContainerRuntime containerRuntime) {
         String execName = containerRuntime.getExecutableName();
+        Optional<Path> execPath = ProcessUtil.pathOfCommand(Path.of(execName));
+        if (execPath.isEmpty()) {
+            log.debugf("Unable to find command %s in $PATH: %s", execName, ProcessUtil.searchPath());
+            return "";
+        }
+
         try {
-            return ProcessBuilder.newBuilder(execName)
+            return ProcessBuilder.newBuilder(execPath.get())
                     .arguments("--version")
                     .output().gatherOnFail(true).toSingleString(16384)
                     .run();
         } catch (Throwable t) {
             // If an exception is thrown in the process, just return an empty String
-            log.debugf(t, "Failure to read version output from %s", execName);
+            log.debugf(t, "Failure to read version output from %s", execPath.get());
             return "";
         }
     }

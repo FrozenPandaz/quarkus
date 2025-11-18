@@ -20,13 +20,13 @@ import jakarta.inject.Singleton;
 import org.infinispan.client.hotrod.RemoteCache;
 import org.infinispan.client.hotrod.RemoteCacheManager;
 import org.infinispan.client.hotrod.RemoteCounterManagerFactory;
-import org.infinispan.client.hotrod.configuration.ClientIntelligence;
 import org.infinispan.client.hotrod.configuration.ClusterConfigurationBuilder;
 import org.infinispan.client.hotrod.configuration.ConfigurationBuilder;
 import org.infinispan.client.hotrod.impl.ConfigurationProperties;
 import org.infinispan.client.hotrod.logging.Log;
 import org.infinispan.client.hotrod.logging.LogFactory;
 import org.infinispan.commons.configuration.StringConfiguration;
+import org.infinispan.commons.internal.InternalCacheNames;
 import org.infinispan.commons.marshall.Marshaller;
 import org.infinispan.commons.marshall.ProtoStreamMarshaller;
 import org.infinispan.counter.api.CounterManager;
@@ -35,7 +35,6 @@ import org.infinispan.protostream.FileDescriptorSource;
 import org.infinispan.protostream.SerializationContext;
 import org.infinispan.protostream.SerializationContextInitializer;
 import org.infinispan.protostream.schema.Schema;
-import org.infinispan.query.remote.client.ProtobufMetadataManagerConstants;
 
 import io.quarkus.arc.Arc;
 
@@ -49,7 +48,7 @@ public class InfinispanClientProducer {
     public static final StringConfiguration DEFAULT_CONFIG = new StringConfiguration(
             "<distributed-cache><encoding media-type=\"application/x-protostream\"/></distributed-cache>");
     public static final String PROTOBUF_FILE_PREFIX = "infinispan.client.hotrod.protofile.";
-    public static final String PROTOBUF_INITIALIZERS = "infinispan.client.hotrod.proto-initializers";
+    public static final String PROTOBUF_SCHEMAS = "infinispan.client.hotrod.proto-schemas";
 
     private final Map<String, RemoteCacheManager> remoteCacheManagers = new HashMap<>();
 
@@ -67,27 +66,27 @@ public class InfinispanClientProducer {
             RemoteCacheManager cacheManager) {
         RemoteCache<String, String> protobufMetadataCache = null;
         Properties namedProperties = properties.get(infinispanConfigName);
-        Set<SerializationContextInitializer> initializers = (Set) namedProperties.remove(PROTOBUF_INITIALIZERS);
+        Set<Schema> schemas = (Set) namedProperties.remove(PROTOBUF_SCHEMAS);
         InfinispanClientRuntimeConfig runtimeConfig = this.infinispanClientsRuntimeConfigHandle.get()
                 .getInfinispanClientRuntimeConfig(infinispanConfigName);
-        if (initializers != null) {
-            for (SerializationContextInitializer initializer : initializers) {
+        if (schemas != null) {
+            for (Schema schema : schemas) {
                 if (protobufMetadataCache == null) {
                     protobufMetadataCache = cacheManager.getCache(
-                            ProtobufMetadataManagerConstants.PROTOBUF_METADATA_CACHE_NAME);
+                            InternalCacheNames.PROTOBUF_METADATA_CACHE_NAME);
                 }
-                protobufMetadataCache.put(initializer.getProtoFileName(), initializer.getProtoFile());
+                protobufMetadataCache.put(schema.getName(), schema.getContent());
             }
             runtimeConfig.backupCluster().entrySet().forEach(backup -> {
                 if (backup.getValue().useSchemaRegistration().orElse(true)) {
                     cacheManager.switchToCluster(backup.getKey());
-                    for (SerializationContextInitializer initializer : initializers) {
+                    for (Schema schema : schemas) {
                         RemoteCache<String, String> backupProtobufMetadataCache = null;
                         if (backupProtobufMetadataCache == null) {
                             backupProtobufMetadataCache = cacheManager.getCache(
-                                    ProtobufMetadataManagerConstants.PROTOBUF_METADATA_CACHE_NAME);
+                                    InternalCacheNames.PROTOBUF_METADATA_CACHE_NAME);
                         }
-                        backupProtobufMetadataCache.put(initializer.getProtoFileName(), initializer.getProtoFile());
+                        backupProtobufMetadataCache.put(schema.getName(), schema.getContent());
                     }
                     cacheManager.switchToDefaultCluster();
                 }
@@ -103,7 +102,7 @@ public class InfinispanClientProducer {
                     String fileContents = (String) property.getValue();
                     if (protobufMetadataCache == null) {
                         protobufMetadataCache = cacheManager.getCache(
-                                ProtobufMetadataManagerConstants.PROTOBUF_METADATA_CACHE_NAME);
+                                InternalCacheNames.PROTOBUF_METADATA_CACHE_NAME);
                     }
                     protobufMetadataCache.put(fileName, fileContents);
                 }
@@ -123,7 +122,7 @@ public class InfinispanClientProducer {
                             String fileContents = (String) property.getValue();
                             if (backupProtobufMetadataCache == null) {
                                 backupProtobufMetadataCache = cacheManager.getCache(
-                                        ProtobufMetadataManagerConstants.PROTOBUF_METADATA_CACHE_NAME);
+                                        InternalCacheNames.PROTOBUF_METADATA_CACHE_NAME);
                             }
                             backupProtobufMetadataCache.put(fileName, fileContents);
                         }
@@ -360,6 +359,9 @@ public class InfinispanClientProducer {
             if (runtimeCacheConfig.nearCacheUseBloomFilter().isPresent()) {
                 builder.remoteCache(cacheName).nearCacheUseBloomFilter(runtimeCacheConfig.nearCacheUseBloomFilter().get());
             }
+            if (runtimeCacheConfig.transactionMode().isPresent()) {
+                builder.remoteCache(cacheName).transactionMode(runtimeCacheConfig.transactionMode().get());
+            }
         }
 
         for (Map.Entry<String, InfinispanClientRuntimeConfig.BackupClusterConfig> backupCluster : infinispanClientRuntimeConfig
@@ -369,8 +371,7 @@ public class InfinispanClientProducer {
             ClusterConfigurationBuilder clusterConfigurationBuilder = builder.addCluster(backupCluster.getKey());
             clusterConfigurationBuilder.addClusterNodes(backupClusterConfig.hosts());
             if (backupClusterConfig.clientIntelligence().isPresent()) {
-                clusterConfigurationBuilder.clusterClientIntelligence(
-                        ClientIntelligence.valueOf(backupClusterConfig.clientIntelligence().get()));
+                clusterConfigurationBuilder.clusterClientIntelligence(backupClusterConfig.clientIntelligence().get());
             }
         }
 
@@ -392,7 +393,7 @@ public class InfinispanClientProducer {
         SerializationContext serializationContext = marshaller.getSerializationContext();
 
         Set<SerializationContextInitializer> initializers = (Set) properties
-                .get(PROTOBUF_INITIALIZERS);
+                .get(PROTOBUF_SCHEMAS);
         if (initializers != null) {
             for (SerializationContextInitializer initializer : initializers) {
                 initializer.registerSchema(serializationContext);

@@ -8,6 +8,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -28,6 +30,7 @@ import org.gradle.api.attributes.Usage;
 import org.gradle.api.attributes.java.TargetJvmEnvironment;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.Property;
 
 import io.quarkus.gradle.tooling.dependency.DependencyUtils;
 import io.quarkus.gradle.tooling.dependency.ExtensionDependency;
@@ -169,12 +172,14 @@ public class QuarkusComponentVariants {
      * @param project project
      * @param mode launch mode
      */
-    public static void addVariants(Project project, LaunchMode mode) {
-        new QuarkusComponentVariants(project, mode).configureAndAddVariants();
+    public static void addVariants(Project project, LaunchMode mode,
+            Property<PlatformSpec> platformSpecProperty) {
+        new QuarkusComponentVariants(project, mode, platformSpecProperty).configureAndAddVariants();
     }
 
     private final Attribute<String> quarkusDepAttr;
     private final Project project;
+    private final Property<PlatformSpec> platformSpecProperty;
     private final Map<ArtifactKey, ProcessedDependency> processedDeps = new HashMap<>();
     private final Map<ArtifactKey, ConditionalDependency> allConditionalDeps = new HashMap<>();
     private final List<ConditionalDependencyVariant> dependencyVariantQueue = new ArrayList<>();
@@ -182,9 +187,11 @@ public class QuarkusComponentVariants {
     private final LaunchMode mode;
     private final AtomicInteger configCopyCounter = new AtomicInteger();
 
-    private QuarkusComponentVariants(Project project, LaunchMode mode) {
+    private QuarkusComponentVariants(Project project, LaunchMode mode,
+            Property<PlatformSpec> platformSpecProperty) {
         this.project = project;
         this.mode = mode;
+        this.platformSpecProperty = platformSpecProperty;
         this.quarkusDepAttr = getConditionalDependencyAttribute(project.getName(), mode);
         project.getDependencies().getAttributesSchema().attribute(quarkusDepAttr);
         project.getDependencies().getAttributesSchema().attribute(getDeploymentDependencyAttribute(project.getName(), mode));
@@ -407,7 +414,10 @@ public class QuarkusComponentVariants {
     }
 
     private void queueConditionalDependency(ProcessedDependency parent, Dependency dep) {
-        dependencyVariantQueue.add(new ConditionalDependencyVariant(parent.extension, getOrCreateConditionalDep(dep)));
+        var conditionalDep = getOrCreateConditionalDep(dep);
+        if (conditionalDep != null) {
+            dependencyVariantQueue.add(new ConditionalDependencyVariant(parent.extension, conditionalDep));
+        }
     }
 
     private ConditionalDependency getOrCreateConditionalDep(Dependency dep) {
@@ -416,13 +426,105 @@ public class QuarkusComponentVariants {
                 key -> newConditionalDep(dep));
     }
 
-    private ConditionalDependency newConditionalDep(Dependency dep) {
-        final Configuration config = project.getConfigurations().detachedConfiguration(dep).setTransitive(false);
-        setConditionalAttributes(config, project, mode);
-        for (var a : config.getResolvedConfiguration().getResolvedArtifacts()) {
-            return new ConditionalDependency(getKey(a), a, DependencyUtils.getExtensionInfoOrNull(project, a));
+    private ResolvedArtifact tryResolvingRelocationArtifact(Dependency dep) {
+        final Configuration configForRelocated = getDetachedWithExclusions(dep).setTransitive(true);
+        setConditionalAttributes(configForRelocated, project, mode);
+
+        var firstLevelDeps = configForRelocated.getResolvedConfiguration().getFirstLevelModuleDependencies();
+        if (firstLevelDeps.size() != 1) {
+            return null;
         }
-        throw new RuntimeException(dep + " did not resolve to any artifacts");
+        ResolvedDependency resolvedDep = firstLevelDeps.iterator().next();
+
+        // If resolved dep is indeed relocated, it should have exactly one child and we assume
+        // that child is the actual artifact we want.
+        var childrenDeps = resolvedDep.getChildren();
+        if (childrenDeps.size() != 1) {
+            return null;
+        }
+        ResolvedDependency relocatedDep = childrenDeps.iterator().next();
+
+        var resolvedArtifacts = relocatedDep.getModuleArtifacts();
+        if (resolvedArtifacts.size() != 1) {
+            return null;
+        }
+
+        ResolvedArtifact artifact = resolvedArtifacts.iterator().next();
+        if (ArtifactCoords.TYPE_POM.equals(artifact.getExtension())) {
+            return null;
+        }
+
+        return artifact;
+    }
+
+    private ConditionalDependency newConditionalDep(Dependency originalDep) {
+        var dep = getConstrainedDep(originalDep);
+        final Configuration config = getDetachedWithExclusions(dep).setTransitive(false);
+
+        setConditionalAttributes(config, project, mode);
+        ResolvedArtifact resolvedArtifact = null;
+
+        for (var a : config.getResolvedConfiguration().getResolvedArtifacts()) {
+            resolvedArtifact = a;
+            break;
+        }
+
+        if (resolvedArtifact == null) {
+            // likely a relocation artifact, in which case we want to resolve it with transitive deps and
+            // take the first artifact.
+            resolvedArtifact = tryResolvingRelocationArtifact(dep);
+        }
+
+        if (resolvedArtifact == null) {
+            // check if that's due to exclude rules, and if yes, ignore
+            if (isExplicitlyExcluded(dep)) {
+                project.getLogger().info("Conditional dependency {} ignored due to exclusion rule", dep);
+                return null;
+            }
+            throw new RuntimeException(dep + " did not resolve to any artifacts");
+        }
+
+        return new ConditionalDependency(
+                getKey(resolvedArtifact),
+                resolvedArtifact,
+                DependencyUtils.getExtensionInfoOrNull(project, resolvedArtifact));
+
+    }
+
+    private boolean isExplicitlyExcluded(Dependency dep) {
+        return platformSpecProperty.get().getExclusions().stream().anyMatch(rule -> {
+            // Do not abort if the group is null, allow the next comparison to take place
+            if (rule.getGroup() != null && !Objects.equals(rule.getGroup(), dep.getGroup())) {
+                return false;
+            }
+            // If we reached this point, and module of the rule is null, it is a match
+            return rule.getModule() == null || Objects.equals(rule.getModule(), dep.getName());
+        });
+    }
+
+    private Configuration getDetachedWithExclusions(Dependency dep) {
+        var c = project.getConfigurations().detachedConfiguration(dep);
+        PlatformSpec platformSpec = platformSpecProperty.get();
+        platformSpec.getExclusions().forEach(rule -> {
+            Map<String, String> excludeProperties = new HashMap<>(2);
+            excludeProperties.put("group", rule.getGroup());
+            excludeProperties.put("module", rule.getModule());
+            c.exclude(excludeProperties);
+        });
+        return c;
+    }
+
+    private Dependency getConstrainedDep(Dependency dep) {
+        return findMatchingConstraint(dep).map(c -> project.getDependencies().create(
+                dep.getGroup() + ":" + dep.getName() + ":" + c.getVersion())).orElse(dep);
+    }
+
+    private Optional<PlatformSpec.Constraint> findMatchingConstraint(Dependency dep) {
+        PlatformSpec platformSpec = platformSpecProperty.get();
+        Map<ArtifactKey, PlatformSpec.Constraint> constraints = platformSpec.getConstraints();
+        PlatformSpec.Constraint matchingConstraint = constraints
+                .get(ArtifactKey.ga(dep.getGroup(), dep.getName()));
+        return Optional.ofNullable(matchingConstraint);
     }
 
     private class ProcessedDependency {

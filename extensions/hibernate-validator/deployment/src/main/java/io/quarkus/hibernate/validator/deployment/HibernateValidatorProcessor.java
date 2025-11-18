@@ -96,7 +96,7 @@ import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBundleBuil
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveFieldBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveMethodBuildItem;
-import io.quarkus.deployment.builditem.nativeimage.RuntimeReinitializedClassBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.RuntimeInitializedClassBuildItem;
 import io.quarkus.deployment.logging.LogCleanupFilterBuildItem;
 import io.quarkus.deployment.pkg.steps.NativeOrNativeSourcesBuild;
 import io.quarkus.deployment.recording.RecorderContext;
@@ -249,6 +249,7 @@ class HibernateValidatorProcessor {
             CombinedIndexBuildItem combinedIndex,
             List<ConfigClassBuildItem> configClasses,
             BeanValidationAnnotationsBuildItem beanValidationAnnotations,
+            BuildProducer<UnremovableBeanBuildItem> unremovableBeans,
             BuildProducer<GeneratedClassBuildItem> generatedClass,
             BuildProducer<GeneratedResourceBuildItem> generatedResource,
             BuildProducer<ReflectiveClassBuildItem> reflectiveClass,
@@ -327,11 +328,13 @@ class HibernateValidatorProcessor {
                 continue;
             }
 
-            embeddingMap.get(constrainedConfigMapping).values().stream()
-                    .map(c -> c.getConfigComponentInterfaces())
-                    .flatMap(Collection::stream)
-                    .map(DotName::createSimple)
-                    .forEach(configComponentsInterfacesToRegisterForReflection::add);
+            for (ConfigClassBuildItem configClass : embeddingMap.get(constrainedConfigMapping).values()) {
+                unremovableBeans.produce(UnremovableBeanBuildItem.beanTypes(configClass.getConfigClass()));
+                configClass.getConfigComponentInterfaces()
+                        .stream()
+                        .map(DotName::createSimple)
+                        .forEach(configComponentsInterfacesToRegisterForReflection::add);
+            }
         }
         reflectiveClass.produce(ReflectiveClassBuildItem
                 .builder(configComponentsInterfacesToRegisterForReflection.stream().map(DotName::toString)
@@ -340,7 +343,9 @@ class HibernateValidatorProcessor {
                 .methods().build());
 
         String builderClassName = HibernateBeanValidationConfigValidator.class.getName() + "Builder";
-        Gizmo gizmo = Gizmo.create(new GeneratedClassGizmo2Adaptor(generatedClass, generatedResource, true));
+        Gizmo gizmo = Gizmo.create(new GeneratedClassGizmo2Adaptor(generatedClass, generatedResource, true))
+                .withDebugInfo(false)
+                .withParameters(false);
         gizmo.class_(builderClassName, cc -> {
             cc.final_();
             cc.implements_(ConfigBuilder.class);
@@ -642,8 +647,8 @@ class HibernateValidatorProcessor {
     }
 
     @BuildStep
-    public RuntimeReinitializedClassBuildItem reinitClockProviderSystemTimezone() {
-        return new RuntimeReinitializedClassBuildItem(
+    public RuntimeInitializedClassBuildItem reinitClockProviderSystemTimezone() {
+        return new RuntimeInitializedClassBuildItem(
                 "io.quarkus.hibernate.validator.runtime.clockprovider.HibernateValidatorClockProviderSystemZoneIdHolder");
     }
 

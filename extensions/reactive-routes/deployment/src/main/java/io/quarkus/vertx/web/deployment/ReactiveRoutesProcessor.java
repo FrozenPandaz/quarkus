@@ -306,7 +306,9 @@ class ReactiveRoutesProcessor {
                 return GeneratedClassGizmoAdaptor.isApplicationClass(className);
             }
         };
-        Gizmo gizmo = Gizmo.create(new GeneratedClassGizmo2Adaptor(generatedClass, generatedResource, appClassPredicate));
+        Gizmo gizmo = Gizmo.create(new GeneratedClassGizmo2Adaptor(generatedClass, generatedResource, appClassPredicate))
+                .withDebugInfo(false)
+                .withParameters(false);
         IndexView index = beanArchive.getIndex();
         Map<RouteMatcher, MethodInfo> matchers = new HashMap<>();
         boolean validatorAvailable = capabilities.isPresent(Capability.HIBERNATE_VALIDATOR);
@@ -746,7 +748,7 @@ class ReactiveRoutesProcessor {
                 }));
 
                 ClassDesc[] params = new ClassDesc[method.parametersCount()];
-                Expr[] args = new Expr[method.parametersCount()];
+                LocalVar[] args = new LocalVar[method.parametersCount()];
 
                 int idx = 0;
                 for (MethodParameterInfo methodParam : method.parameters()) {
@@ -1592,9 +1594,9 @@ class ReactiveRoutesProcessor {
             }
         }
 
-        Expr getValue(MethodParameterInfo methodParam, Set<AnnotationInstance> annotations,
+        LocalVar getValue(MethodParameterInfo methodParam, Set<AnnotationInstance> annotations,
                 Var routingContext, BlockCreator bc, BuildProducer<ReflectiveHierarchyBuildItem> reflectiveHierarchy) {
-            return provider.get(methodParam, annotations, routingContext, bc, reflectiveHierarchy);
+            return bc.localVar("value", provider.get(methodParam, annotations, routingContext, bc, reflectiveHierarchy));
         }
 
         static class Builder {

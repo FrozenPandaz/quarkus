@@ -3,8 +3,7 @@ package io.quarkus.hibernate.orm.deployment.dev;
 import java.util.List;
 
 import io.quarkus.agroal.spi.JdbcInitialSQLGeneratorBuildItem;
-import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
-import io.quarkus.arc.processor.DotNames;
+import io.quarkus.agroal.spi.JdbcUpdateSQLGeneratorBuildItem;
 import io.quarkus.deployment.IsLocalDevelopment;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
@@ -16,6 +15,7 @@ import io.quarkus.hibernate.orm.deployment.HibernateOrmConfig;
 import io.quarkus.hibernate.orm.deployment.HibernateOrmEnabled;
 import io.quarkus.hibernate.orm.deployment.PersistenceUnitDescriptorBuildItem;
 import io.quarkus.hibernate.orm.dev.HibernateOrmDevInfoCreateDDLSupplier;
+import io.quarkus.hibernate.orm.dev.HibernateOrmDevInfoUpdateDDLSupplier;
 import io.quarkus.hibernate.orm.dev.ui.HibernateOrmDevJsonRpcService;
 import io.quarkus.hibernate.orm.runtime.PersistenceUnitUtil;
 
@@ -48,24 +48,13 @@ public class HibernateOrmDevUIProcessor {
         card.addPage(Page.webComponentPageBuilder()
                 .title("HQL Console")
                 .componentLink("hibernate-orm-hql-console.js")
-                .icon("font-awesome-solid:play")
-                .metadata("allowHql", String.valueOf(config.devui().allowHql())));
+                .icon("font-awesome-solid:play"));
         return card;
     }
 
     @BuildStep
     JsonRPCProvidersBuildItem createJsonRPCService() {
         return new JsonRPCProvidersBuildItem(HibernateOrmDevJsonRpcService.class);
-    }
-
-    @BuildStep
-    AdditionalBeanBuildItem additionalBeans() {
-        return AdditionalBeanBuildItem
-                .builder()
-                .addBeanClass(HibernateOrmDevJsonRpcService.class)
-                .setUnremovable()
-                .setDefaultScope(DotNames.APPLICATION_SCOPED)
-                .build();
     }
 
     @BuildStep
@@ -76,6 +65,17 @@ public class HibernateOrmDevUIProcessor {
             String dsName = puDescriptor.getConfig().getDataSource().orElse(PersistenceUnitUtil.DEFAULT_PERSISTENCE_UNIT_NAME);
             initialSQLGeneratorBuildItemBuildProducer
                     .produce(new JdbcInitialSQLGeneratorBuildItem(dsName, new HibernateOrmDevInfoCreateDDLSupplier(puName)));
+        }
+    }
+
+    @BuildStep
+    void handleUpdateSql(List<PersistenceUnitDescriptorBuildItem> persistenceUnitDescriptorBuildItems,
+            BuildProducer<JdbcUpdateSQLGeneratorBuildItem> updateSQLGeneratorBuildItemBuildProducer) {
+        for (PersistenceUnitDescriptorBuildItem puDescriptor : persistenceUnitDescriptorBuildItems) {
+            String puName = puDescriptor.getPersistenceUnitName();
+            String dsName = puDescriptor.getConfig().getDataSource().orElse(PersistenceUnitUtil.DEFAULT_PERSISTENCE_UNIT_NAME);
+            updateSQLGeneratorBuildItemBuildProducer
+                    .produce(new JdbcUpdateSQLGeneratorBuildItem(dsName, new HibernateOrmDevInfoUpdateDDLSupplier(puName)));
         }
     }
 

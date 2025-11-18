@@ -33,7 +33,7 @@ import jakarta.enterprise.inject.Default;
 import org.infinispan.client.hotrod.RemoteCache;
 import org.infinispan.client.hotrod.RemoteCacheManager;
 import org.infinispan.client.hotrod.annotation.ClientListener;
-import org.infinispan.client.hotrod.configuration.NearCacheMode;
+import org.infinispan.client.hotrod.configuration.RemoteCacheConfiguration;
 import org.infinispan.client.hotrod.exceptions.HotRodClientException;
 import org.infinispan.client.hotrod.impl.ConfigurationProperties;
 import org.infinispan.client.hotrod.logging.Log;
@@ -46,7 +46,6 @@ import org.infinispan.protostream.EnumMarshaller;
 import org.infinispan.protostream.FileDescriptorSource;
 import org.infinispan.protostream.GeneratedSchema;
 import org.infinispan.protostream.MessageMarshaller;
-import org.infinispan.protostream.SerializationContextInitializer;
 import org.infinispan.protostream.WrappedMessage;
 import org.infinispan.protostream.schema.Schema;
 import org.jboss.jandex.AnnotationInstance;
@@ -82,8 +81,6 @@ import io.quarkus.deployment.builditem.ExtensionSslNativeSupportBuildItem;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.HotDeploymentWatchedFileBuildItem;
 import io.quarkus.deployment.builditem.NativeImageFeatureBuildItem;
-import io.quarkus.deployment.builditem.SystemPropertyBuildItem;
-import io.quarkus.deployment.builditem.nativeimage.NativeImageConfigBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.NativeImageSecurityProviderBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
@@ -135,6 +132,11 @@ class InfinispanClientProcessor {
         return new NativeImageFeatureBuildItem(DisableLoggingFeature.class);
     }
 
+    @BuildStep
+    FeatureBuildItem feature() {
+        return new FeatureBuildItem(Feature.INFINISPAN_CLIENT);
+    }
+
     /**
      * Sets up additional properties for use when proto stream marshaller is in use
      */
@@ -171,18 +173,14 @@ class InfinispanClientProcessor {
     InfinispanPropertiesBuildItem setup(ApplicationArchivesBuildItem applicationArchivesBuildItem,
             BuildProducer<ReflectiveClassBuildItem> reflectiveClass,
             BuildProducer<HotDeploymentWatchedFileBuildItem> hotDeployment,
-            BuildProducer<SystemPropertyBuildItem> systemProperties,
-            BuildProducer<FeatureBuildItem> feature,
             BuildProducer<AdditionalBeanBuildItem> additionalBeans,
             BuildProducer<ExtensionSslNativeSupportBuildItem> sslNativeSupport,
             BuildProducer<NativeImageSecurityProviderBuildItem> nativeImageSecurityProviders,
-            BuildProducer<NativeImageConfigBuildItem> nativeImageConfig,
             BuildProducer<InfinispanClientNameBuildItem> infinispanClientNames,
             MarshallingBuildItem marshallingBuildItem,
             BuildProducer<NativeImageResourceBuildItem> resourceBuildItem,
             CombinedIndexBuildItem applicationIndexBuildItem) throws ClassNotFoundException, IOException {
 
-        feature.produce(new FeatureBuildItem(Feature.INFINISPAN_CLIENT));
         additionalBeans.produce(AdditionalBeanBuildItem.unremovableOf(InfinispanClientProducer.class));
         additionalBeans.produce(AdditionalBeanBuildItem.unremovableOf(CacheInvalidateAllInterceptor.class));
         additionalBeans.produce(AdditionalBeanBuildItem.unremovableOf(CacheResultInterceptor.class));
@@ -191,7 +189,7 @@ class InfinispanClientProcessor {
         additionalBeans.produce(AdditionalBeanBuildItem.builder().addBeanClass(InfinispanClientName.class).build());
         additionalBeans.produce(AdditionalBeanBuildItem.builder().addBeanClass(Remote.class).build());
 
-        resourceBuildItem.produce(new NativeImageResourceBuildItem("proto/generated/query.proto"));
+        resourceBuildItem.produce(new NativeImageResourceBuildItem("org/infinispan/commons/query/client/query.proto"));
         resourceBuildItem.produce(new NativeImageResourceBuildItem(WrappedMessage.PROTO_FILE));
         hotDeployment
                 .produce(new HotDeploymentWatchedFileBuildItem(META_INF + File.separator + DEFAULT_HOTROD_CLIENT_PROPERTIES));
@@ -250,26 +248,26 @@ class InfinispanClientProcessor {
                     }
                 }
                 properties.putAll(marshallingBuildItem.getProperties());
-                Collection<ClassInfo> initializerClasses = index.getAllKnownImplementors(DotName.createSimple(
-                        SerializationContextInitializer.class.getName()));
-                initializerClasses
-                        .addAll(index.getAllKnownImplementors(DotName.createSimple(GeneratedSchema.class.getName())));
+                Collection<ClassInfo> schemaClasses = index.getAllKnownImplementations(DotName.createSimple(
+                        Schema.class.getName()));
+                schemaClasses
+                        .addAll(index.getAllKnownImplementations(DotName.createSimple(GeneratedSchema.class.getName())));
 
-                Set<SerializationContextInitializer> initializers = new HashSet<>(initializerClasses.size());
-                for (ClassInfo ci : initializerClasses) {
+                Set<Schema> schemas = new HashSet<>(schemaClasses.size());
+                for (ClassInfo ci : schemaClasses) {
                     Class<?> initializerClass = Thread.currentThread().getContextClassLoader().loadClass(ci.toString());
                     try {
-                        SerializationContextInitializer sci = (SerializationContextInitializer) initializerClass
+                        Schema sci = (Schema) initializerClass
                                 .getDeclaredConstructor().newInstance();
-                        initializers.add(sci);
+                        schemas.add(sci);
                     } catch (InstantiationException | IllegalAccessException | InvocationTargetException
                             | NoSuchMethodException e) {
                         // This shouldn't ever be possible as annotation processor should generate empty constructor
                         throw new RuntimeException(e);
                     }
                 }
-                if (!initializers.isEmpty()) {
-                    properties.put(InfinispanClientProducer.PROTOBUF_INITIALIZERS, initializers);
+                if (!schemas.isEmpty()) {
+                    properties.put(InfinispanClientProducer.PROTOBUF_SCHEMAS, schemas);
                 }
             }
         }
@@ -339,14 +337,6 @@ class InfinispanClientProcessor {
     BeanContainerListenerBuildItem build(InfinispanRecorder recorder, InfinispanPropertiesBuildItem builderBuildItem) {
         Map<String, Properties> propertiesMap = builderBuildItem.getProperties();
 
-        addMaxEntries(DEFAULT_INFINISPAN_CLIENT_NAME,
-                infinispanClientsBuildTimeConfig.defaultInfinispanClient(), propertiesMap.get(DEFAULT_INFINISPAN_CLIENT_NAME));
-        for (Map.Entry<String, InfinispanClientBuildTimeConfig> config : infinispanClientsBuildTimeConfig
-                .namedInfinispanClients()
-                .entrySet()) {
-            addMaxEntries(config.getKey(), config.getValue(), propertiesMap.get(config.getKey()));
-        }
-
         // This is necessary to be done for Protostream Marshaller init in native
         return new BeanContainerListenerBuildItem(recorder.configureInfinispan(propertiesMap));
     }
@@ -369,7 +359,7 @@ class InfinispanClientProcessor {
      * @return string containing the contents of the file
      */
     private static String getContents(InputStream stream) {
-        try (Scanner scanner = new Scanner(stream, "UTF-8")) {
+        try (Scanner scanner = new Scanner(stream, StandardCharsets.UTF_8)) {
             return scanner.useDelimiter("\\A").next();
         }
     }
@@ -425,7 +415,7 @@ class InfinispanClientProcessor {
             }
 
             // We use caffeine for bounded near cache - so register that reflection if we have a bounded near cache
-            if (properties.containsKey(ConfigurationProperties.NEAR_CACHE_MAX_ENTRIES)) {
+            if (properties.containsKey(RemoteCacheConfiguration.NEAR_CACHE_MAX_ENTRIES)) {
                 reflectiveClass
                         .produce(ReflectiveClassBuildItem.builder("com.github.benmanes.caffeine.cache.SSMS").build());
                 reflectiveClass
@@ -451,20 +441,6 @@ class InfinispanClientProcessor {
         return properties;
     }
 
-    private void addMaxEntries(String clientName, InfinispanClientBuildTimeConfig config, Properties properties) {
-        if (log.isDebugEnabled()) {
-            log.debugf("Applying micro profile configuration: %s", config);
-        }
-        // Only write the entries if it is a valid number and it isn't already configured
-        if (config.nearCacheMaxEntries() > 0 && !properties.containsKey(ConfigurationProperties.NEAR_CACHE_MODE)) {
-            // This is already empty so no need for putIfAbsent
-            if (InfinispanClientUtil.isDefault(clientName)) {
-                properties.put(ConfigurationProperties.NEAR_CACHE_MODE, NearCacheMode.INVALIDATED.toString());
-                properties.putIfAbsent(ConfigurationProperties.NEAR_CACHE_MAX_ENTRIES, config.nearCacheMaxEntries());
-            }
-        }
-    }
-
     @BuildStep
     UnremovableBeanBuildItem ensureBeanLookupAvailable() {
         return UnremovableBeanBuildItem.beanTypes(BaseMarshaller.class, EnumMarshaller.class, MessageMarshaller.class,
@@ -486,7 +462,7 @@ class InfinispanClientProcessor {
         }
     }
 
-    class RemoteCacheBean {
+    static class RemoteCacheBean {
         Type type;
         String clientName;
         String cacheName;

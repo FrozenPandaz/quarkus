@@ -3,11 +3,12 @@ package io.quarkus.websockets.next.deployment;
 import static io.quarkus.arc.processor.DotNames.EVENT;
 import static io.quarkus.deployment.annotations.ExecutionTime.RUNTIME_INIT;
 import static io.quarkus.deployment.annotations.ExecutionTime.STATIC_INIT;
+import static io.quarkus.security.spi.SecurityTransformer.AuthorizationType.SECURITY_CHECK;
+import static io.quarkus.security.spi.SecurityTransformerBuildItem.createSecurityTransformer;
 import static io.quarkus.vertx.http.deployment.EagerSecurityInterceptorClassesBuildItem.collectInterceptedClasses;
 import static org.jboss.jandex.gizmo2.Jandex2Gizmo.classDescOf;
 import static org.jboss.jandex.gizmo2.Jandex2Gizmo.methodDescOf;
 
-import java.lang.constant.ClassDesc;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -70,6 +71,7 @@ import io.quarkus.arc.processor.InjectionPointInfo;
 import io.quarkus.arc.processor.InvokerInfo;
 import io.quarkus.arc.processor.KotlinDotNames;
 import io.quarkus.arc.processor.KotlinUtils;
+import io.quarkus.arc.processor.RuntimeTypeCreator;
 import io.quarkus.arc.processor.ScopeInfo;
 import io.quarkus.bootstrap.classloading.QuarkusClassLoader;
 import io.quarkus.builder.item.SimpleBuildItem;
@@ -106,7 +108,8 @@ import io.quarkus.security.identity.IdentityProviderManager;
 import io.quarkus.security.spi.ClassSecurityAnnotationBuildItem;
 import io.quarkus.security.spi.ClassSecurityCheckStorageBuildItem;
 import io.quarkus.security.spi.PermissionsAllowedMetaAnnotationBuildItem;
-import io.quarkus.security.spi.SecurityTransformerUtils;
+import io.quarkus.security.spi.SecurityTransformer;
+import io.quarkus.security.spi.SecurityTransformerBuildItem;
 import io.quarkus.security.spi.runtime.AuthorizationFailureEvent;
 import io.quarkus.security.spi.runtime.AuthorizationSuccessEvent;
 import io.quarkus.security.spi.runtime.SecurityCheck;
@@ -145,6 +148,7 @@ import io.quarkus.websockets.next.runtime.WebSocketEndpoint.ExecutionModel;
 import io.quarkus.websockets.next.runtime.WebSocketEndpointBase;
 import io.quarkus.websockets.next.runtime.WebSocketHeaderPropagationHandler;
 import io.quarkus.websockets.next.runtime.WebSocketHttpServerOptionsCustomizer;
+import io.quarkus.websockets.next.runtime.WebSocketSecurityIdentityAssociation;
 import io.quarkus.websockets.next.runtime.WebSocketServerRecorder;
 import io.quarkus.websockets.next.runtime.config.WebSocketsServerRuntimeConfig;
 import io.quarkus.websockets.next.runtime.kotlin.ApplicationCoroutineScope;
@@ -436,19 +440,30 @@ public class WebSocketProcessor {
 
     @BuildStep
     void validateConnectorInjectionPoints(List<WebSocketEndpointBuildItem> endpoints,
+            BeanDiscoveryFinishedBuildItem beanDiscoveryFinishedBuildItem,
             ValidationPhaseBuildItem validationPhase, BuildProducer<ValidationErrorBuildItem> validationErrors) {
         for (InjectionPointInfo injectionPoint : validationPhase.getContext().getInjectionPoints()) {
             if (injectionPoint.getRequiredType().name().equals(WebSocketDotNames.WEB_SOCKET_CONNECTOR)
                     && injectionPoint.hasDefaultedQualifier()) {
                 Type clientEndpointType = injectionPoint.getRequiredType().asParameterizedType().arguments().get(0);
-                if (endpoints.stream()
-                        .filter(WebSocketEndpointBuildItem::isClient)
-                        .map(WebSocketEndpointBuildItem::beanClassName)
-                        .noneMatch(clientEndpointType.name()::equals)) {
+                if (beanDiscoveryFinishedBuildItem.beanStream().withBeanClass(clientEndpointType.name()).isEmpty()) {
+                    // there is no CDI bean with given name
                     validationErrors.produce(
                             new ValidationErrorBuildItem(new WebSocketClientException(String.format(
-                                    "Type argument [%s] of the injected WebSocketConnector is not a @WebSocketClient endpoint: %s",
+                                    "Type argument [%s] of the injected WebSocketConnector is not a @WebSocketClient endpoint, because it is not a bean: %s"
+                                            + "\nPlease consult https://quarkus.io/guides/cdi-reference#bean_discovery on how to make the module containing "
+                                            + "the code discoverable by Quarkus. ",
                                     clientEndpointType, injectionPoint.getTargetInfo()))));
+                } else {
+                    if (endpoints.stream()
+                            .filter(WebSocketEndpointBuildItem::isClient)
+                            .map(WebSocketEndpointBuildItem::beanClassName)
+                            .noneMatch(clientEndpointType.name()::equals)) {
+                        validationErrors.produce(
+                                new ValidationErrorBuildItem(new WebSocketClientException(String.format(
+                                        "Type argument [%s] of the injected WebSocketConnector is not a @WebSocketClient endpoint: %s",
+                                        clientEndpointType, injectionPoint.getTargetInfo()))));
+                    }
                 }
             }
         }
@@ -482,7 +497,9 @@ public class WebSocketProcessor {
                         return name;
                     }
                 });
-        Gizmo gizmo = Gizmo.create(classOutput);
+        Gizmo gizmo = Gizmo.create(classOutput)
+                .withDebugInfo(false)
+                .withParameters(false);
         for (WebSocketEndpointBuildItem endpoint : endpoints) {
             // For each WebSocket endpoint bean we generate an implementation of WebSocketEndpoint
             // A new instance of this generated endpoint is created for each client connection
@@ -507,8 +524,13 @@ public class WebSocketProcessor {
             ValidationPhaseBuildItem validationPhase, BuildProducer<RouteBuildItem> routes,
             Optional<PermissionsAllowedMetaAnnotationBuildItem> metaPermissionsAllowed,
             EndpointSecurityChecksBuildItem endpointSecurityChecks, Capabilities capabilities,
-            CombinedIndexBuildItem indexBuildItem) {
+            CombinedIndexBuildItem indexBuildItem,
+            Optional<SecurityTransformerBuildItem> securityTransformerBuildItem) {
         boolean securityEnabled = capabilities.isPresent(Capability.SECURITY);
+        SecurityTransformer securityTransformer = securityEnabled
+                ? SecurityTransformerBuildItem.createSecurityTransformer(indexBuildItem.getIndex(),
+                        securityTransformerBuildItem)
+                : null;
         for (GeneratedEndpointBuildItem endpoint : generatedEndpoints.stream().filter(GeneratedEndpointBuildItem::isServer)
                 .toList()) {
             boolean httpUpgradeSecured = endpointSecurityChecks.endpointIdToSecurityCheck.containsKey(endpoint.endpointId)
@@ -521,11 +543,11 @@ public class WebSocketProcessor {
                     .handler(recorder.createEndpointHandler(endpoint.generatedClassName, endpoint.endpointId,
                             activateContext(config.activateRequestContext(), BuiltinScope.REQUEST.getInfo(),
                                     endpoint.endpointId, endpoints, validationPhase.getBeanResolver(), metaPermissionsAllowed,
-                                    securityEnabled, httpUpgradeSecured),
+                                    securityEnabled, httpUpgradeSecured, securityTransformer),
                             activateContext(config.activateSessionContext(),
                                     new ScopeInfo(DotName.createSimple(SessionScoped.class), true), endpoint.endpointId,
                                     endpoints, validationPhase.getBeanResolver(), metaPermissionsAllowed, securityEnabled,
-                                    httpUpgradeSecured),
+                                    httpUpgradeSecured, securityTransformer),
                             endpoint.path));
             routes.produce(builder.build());
         }
@@ -534,11 +556,11 @@ public class WebSocketProcessor {
     private boolean activateContext(WebSocketsServerBuildConfig.ContextActivation activation, ScopeInfo scope,
             String endpointId, List<WebSocketEndpointBuildItem> endpoints, BeanResolver beanResolver,
             Optional<PermissionsAllowedMetaAnnotationBuildItem> metaPermissionsAllowed,
-            boolean securityEnabled, boolean httpUpgradeSecured) {
+            boolean securityEnabled, boolean httpUpgradeSecured, SecurityTransformer securityTransformer) {
         return switch (activation) {
             case ALWAYS -> true;
             case AUTO -> needsContext(findEndpoint(endpointId, endpoints).bean, scope, new HashSet<>(), beanResolver,
-                    metaPermissionsAllowed, securityEnabled, httpUpgradeSecured);
+                    metaPermissionsAllowed, securityEnabled, httpUpgradeSecured, securityTransformer);
             default -> throw new IllegalArgumentException("Unexpected value: " + activation);
         };
     }
@@ -554,7 +576,7 @@ public class WebSocketProcessor {
 
     private boolean needsContext(BeanInfo bean, ScopeInfo scope, Set<String> processedBeans, BeanResolver beanResolver,
             Optional<PermissionsAllowedMetaAnnotationBuildItem> metaPermissionsAllowed, boolean securityEnabled,
-            boolean httpUpgradeSecured) {
+            boolean httpUpgradeSecured, SecurityTransformer securityTransformer) {
         if (processedBeans.add(bean.getIdentifier())) {
 
             if (scope.equals(bean.getScope())) {
@@ -564,7 +586,7 @@ public class WebSocketProcessor {
                     && bean.isClassBean()
                     && bean.hasAroundInvokeInterceptors()
                     && hasSecurityAnnNotOnHttpUpgrade(bean.getTarget().get().asClass(), metaPermissionsAllowed,
-                            httpUpgradeSecured)) {
+                            httpUpgradeSecured, securityTransformer)) {
                 // The given scope is RequestScoped, the bean is class-based, has an aroundInvoke interceptor associated and is annotated with a security annotation
                 return true;
             }
@@ -572,7 +594,7 @@ public class WebSocketProcessor {
                 BeanInfo dependency = injectionPoint.getResolvedBean();
                 if (dependency != null) {
                     if (needsContext(dependency, scope, processedBeans, beanResolver, metaPermissionsAllowed, securityEnabled,
-                            false)) {
+                            false, securityTransformer)) {
                         return true;
                     }
                 } else {
@@ -594,7 +616,7 @@ public class WebSocketProcessor {
                         // For programmatic lookup and @All List<> we need to resolve the beans manually
                         for (BeanInfo lookupDependency : beanResolver.resolveBeans(requiredType, qualifiers)) {
                             if (needsContext(lookupDependency, scope, processedBeans, beanResolver, metaPermissionsAllowed,
-                                    securityEnabled, false)) {
+                                    securityEnabled, false, securityTransformer)) {
                                 return true;
                             }
                         }
@@ -606,18 +628,31 @@ public class WebSocketProcessor {
     }
 
     private static boolean hasSecurityAnnNotOnHttpUpgrade(ClassInfo classInfo,
-            Optional<PermissionsAllowedMetaAnnotationBuildItem> metaPermissionsAllowed, boolean httpUpgradeSecured) {
+            Optional<PermissionsAllowedMetaAnnotationBuildItem> metaPermissionsAllowed, boolean httpUpgradeSecured,
+            SecurityTransformer securityTransformer) {
         final List<AnnotationInstance> annotations;
         if (httpUpgradeSecured) {
             // this is endpoint class and HTTP upgrade is secured, so we only need active CDI request context for methods
+            for (MethodInfo method : classInfo.methods()) {
+                if (securityTransformer.hasSecurityAnnotation(method, SECURITY_CHECK)) {
+                    return true;
+                }
+            }
             annotations = classInfo.annotations().stream()
                     .filter(ai -> ai.target() != null && ai.target().kind() == AnnotationTarget.Kind.METHOD).toList();
         } else {
             // class and method annotations
+            if (securityTransformer.hasSecurityAnnotation(classInfo, SECURITY_CHECK)) {
+                return true;
+            }
+            for (MethodInfo method : classInfo.methods()) {
+                if (securityTransformer.hasSecurityAnnotation(method, SECURITY_CHECK)) {
+                    return true;
+                }
+            }
             annotations = classInfo.annotations();
         }
-        return SecurityTransformerUtils.hasSecurityAnnotation(annotations)
-                || metaPermissionsAllowed.get().hasPermissionsAllowed(annotations);
+        return metaPermissionsAllowed.get().hasPermissionsAllowed(annotations);
     }
 
     @BuildStep
@@ -720,22 +755,28 @@ public class WebSocketProcessor {
 
     @BuildStep
     void preventRepeatedSecurityChecksForHttpUpgrade(Capabilities capabilities, CombinedIndexBuildItem indexBuildItem,
-            BuildProducer<AnnotationsTransformerBuildItem> producer) {
+            BuildProducer<AnnotationsTransformerBuildItem> producer,
+            Optional<SecurityTransformerBuildItem> securityTransformerBuildItem) {
         if (capabilities.isPresent(Capability.SECURITY) && identityUpdateNotSupported(indexBuildItem.getIndex())) {
+            SecurityTransformer securityTransformer = SecurityTransformerBuildItem.createSecurityTransformer(
+                    indexBuildItem.getIndex(), securityTransformerBuildItem);
             producer.produce(new AnnotationsTransformerBuildItem(AnnotationTransformation
                     .forClasses()
                     .whenAnyMatch(WebSocketDotNames.WEB_SOCKET)
-                    .transform(ctx -> ctx.remove(SecurityTransformerUtils::isStandardSecurityAnnotation))));
+                    .transform(ctx -> ctx.remove(ai -> securityTransformer.isSecurityAnnotation(ai, SECURITY_CHECK)))));
         }
     }
 
     @BuildStep
     EndpointSecurityChecksBuildItem collectEndpointSecurityChecks(BeanArchiveIndexBuildItem indexItem,
             List<WebSocketEndpointBuildItem> endpoints, Optional<ClassSecurityCheckStorageBuildItem> storageItem,
-            Capabilities capabilities) {
+            Capabilities capabilities, Optional<SecurityTransformerBuildItem> securityTransformerBuildItem) {
         final Map<String, SecurityCheck> endpointIdToSecurityCheck;
         if (capabilities.isPresent(Capability.SECURITY) && storageItem.isPresent()) {
-            endpointIdToSecurityCheck = collectEndpointSecurityChecks(endpoints, storageItem.get(), indexItem.getIndex());
+            SecurityTransformer securityTransformer = SecurityTransformerBuildItem.createSecurityTransformer(
+                    indexItem.getIndex(), securityTransformerBuildItem);
+            endpointIdToSecurityCheck = collectEndpointSecurityChecks(endpoints, storageItem.get(), indexItem.getIndex(),
+                    securityTransformer);
         } else {
             endpointIdToSecurityCheck = Map.of();
         }
@@ -841,6 +882,14 @@ public class WebSocketProcessor {
         }
     }
 
+    @BuildStep
+    void createSecurityIdentityAssociation(Capabilities capabilities,
+            BuildProducer<AdditionalBeanBuildItem> additionalBeanProducer) {
+        if (capabilities.isPresent(Capability.SECURITY)) {
+            additionalBeanProducer.produce(AdditionalBeanBuildItem.unremovableOf(WebSocketSecurityIdentityAssociation.class));
+        }
+    }
+
     private static boolean identityUpdateNotSupported(IndexView index) {
         return index.getKnownUsers(WEBSOCKET_SECURITY_NAME).isEmpty();
     }
@@ -854,13 +903,13 @@ public class WebSocketProcessor {
     }
 
     private static Map<String, SecurityCheck> collectEndpointSecurityChecks(List<WebSocketEndpointBuildItem> endpoints,
-            ClassSecurityCheckStorageBuildItem storage, IndexView index) {
+            ClassSecurityCheckStorageBuildItem storage, IndexView index, SecurityTransformer securityTransformer) {
         return endpoints
                 .stream().<Map.Entry<String, SecurityCheck>> mapMulti((endpoint, consumer) -> {
                     var beanName = endpoint.beanClassName();
                     if (storage.getSecurityCheck(beanName) instanceof SecurityCheck check) {
                         consumer.accept(Map.entry(endpoint.id, check));
-                    } else if (SecurityTransformerUtils.hasSecurityAnnotation(index.getClassByName(beanName))) {
+                    } else if (securityTransformer.hasSecurityAnnotation(index.getClassByName(beanName))) {
                         throw new IllegalStateException("WebSocket endpoint '%s' requires ".formatted(beanName)
                                 + "secured HTTP upgrade but Quarkus did not configure security check "
                                 + "correctly. Please open issue in Quarkus project");
@@ -1158,7 +1207,7 @@ public class WebSocketProcessor {
                     InvokerInfo invoker = invokerFactory.createInvoker(callback.bean, callback.method)
                             .withInvocationWrapper(CoroutineInvoker.class, "inNewCoroutine")
                             .build();
-                    bc.yield(bc.new_(ConstructorDesc.of(ClassDesc.of(invoker.getClassName()))));
+                    bc.yield(bc.new_(ConstructorDesc.of(invoker.getClassDesc())));
                 });
             });
         }

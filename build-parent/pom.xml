@@ -20,28 +20,29 @@
 
         <!-- These properties are needed in order for them to be resolvable by the generated projects -->
         <compiler-plugin.version>${version.compiler.plugin}</compiler-plugin.version>
-        <kotlin.version>2.2.10</kotlin.version>
-        <dokka.version>2.0.0</dokka.version>
+        <kotlin.version>2.2.21</kotlin.version>
+        <ksp-gradle-plugin.version>2.2.10-2.0.2</ksp-gradle-plugin.version> <!-- Kotlin Symbol Processing plugin used in a test -->
+        <dokka.version>2.1.0</dokka.version>
         <scala.version>2.13.12</scala.version>
-        <scala-maven-plugin.version>4.9.5</scala-maven-plugin.version>
+        <scala-maven-plugin.version>4.9.7</scala-maven-plugin.version>
         <!-- not pretty but this is used in the codestarts and we don't want to break compatibility -->
         <scala-plugin.version>${scala-maven-plugin.version}</scala-plugin.version>
         <jboss-bridger-plugin.version>1.6.Final</jboss-bridger-plugin.version>
 
         <!-- Jandex versions -->
-        <jandex.version>3.4.0</jandex.version>
+        <jandex.version>3.5.2</jandex.version>
         <jandex-gradle-plugin.version>1.0.0</jandex-gradle-plugin.version>
 
         <asciidoctorj.version>2.5.13</asciidoctorj.version>
-        <htmlunit.version>4.14.0</htmlunit.version>
-        <javaparser-core.version>3.27.0</javaparser-core.version>
+        <htmlunit.version>4.18.0</htmlunit.version>
+        <javaparser-core.version>3.27.1</javaparser-core.version>
         <jdeparser.version>2.0.3.Final</jdeparser.version>
         <subethasmtp.version>6.0.1</subethasmtp.version>
 
         <!-- Dev tools -->
         <freemarker.version>2.3.34</freemarker.version>
-        <commonmark.version>0.25.1</commonmark.version>
-        <jgit.version>7.3.0.202506031305-r</jgit.version>
+        <commonmark.version>0.27.0</commonmark.version>
+        <jgit.version>7.4.0.202509020913-r</jgit.version>
 
         <!-- Arquillian BOM -->
         <arquillian.version>1.7.0.Final</arquillian.version>
@@ -60,9 +61,9 @@
         <supported-maven-versions>[3.8.6,)</supported-maven-versions>
 
         <!-- These 2 properties are used by CreateProjectMojo to add the Maven Wrapper -->
-        <proposed-maven-version>3.9.9</proposed-maven-version>
-        <maven-wrapper.version>3.3.2</maven-wrapper.version>
-        <gradle-wrapper.version>9.0.0</gradle-wrapper.version>
+        <proposed-maven-version>3.9.11</proposed-maven-version>
+        <maven-wrapper.version>3.3.4</maven-wrapper.version>
+        <gradle-wrapper.version>9.2.1</gradle-wrapper.version>
         <quarkus-gradle-plugin.version>${project.version}</quarkus-gradle-plugin.version>
         <quarkus-maven-plugin.version>${project.version}</quarkus-maven-plugin.version>
         <maven-plugin-plugin.version>3.8.1</maven-plugin-plugin.version>
@@ -73,7 +74,7 @@
         <volume.access.modifier>:Z</volume.access.modifier>
 
         <!-- Defaults for integration tests -->
-        <elasticsearch-server.version>9.1.2</elasticsearch-server.version>
+        <elasticsearch-server.version>9.1.5</elasticsearch-server.version>
         <elasticsearch.image>docker.io/elastic/elasticsearch:${elasticsearch-server.version}</elasticsearch.image>
         <logstash.image>docker.io/elastic/logstash:${elasticsearch-server.version}</logstash.image>
         <kibana.image>docker.io/elastic/kibana:${elasticsearch-server.version}</kibana.image>
@@ -96,26 +97,24 @@
         <junit4.version>4.13.2</junit4.version>
 
         <!-- The image to use for tests that run Keycloak -->
-        <keycloak.server.version>26.3.0</keycloak.server.version>
-        <keycloak.wildfly.version>19.0.3</keycloak.wildfly.version>
+        <keycloak.server.version>26.4.5</keycloak.server.version>
         <keycloak.docker.image>quay.io/keycloak/keycloak:${keycloak.server.version}</keycloak.docker.image>
-        <keycloak.docker.legacy.image>quay.io/keycloak/keycloak:${keycloak.wildfly.version}-legacy</keycloak.docker.legacy.image>
 
         <unboundid-ldap.version>7.0.3</unboundid-ldap.version>
 
-        <assertj.version>3.27.4</assertj.version>
+        <assertj.version>3.27.6</assertj.version>
 
-        <wiremock.version>3.13.1</wiremock.version>
+        <wiremock.version>3.13.2</wiremock.version>
         <wiremock-maven-plugin.version>7.3.0</wiremock-maven-plugin.version>
 
         <!-- Artemis test dependencies -->
-        <artemis.version>2.42.0</artemis.version>
+        <artemis.version>2.44.0</artemis.version>
 
         <!-- Code Coverage Properties-->
         <jacoco.agent.argLine></jacoco.agent.argLine>
 
         <asciidoctor-maven-plugin.version>2.0.0</asciidoctor-maven-plugin.version>
-        <docker-maven-plugin.version>0.46.0</docker-maven-plugin.version>
+        <docker-maven-plugin.version>0.48.0</docker-maven-plugin.version>
         <maven-invoker-plugin.version>3.9.1</maven-invoker-plugin.version>
 
         <!-- revapi API check -->
@@ -1139,13 +1138,24 @@
             <id>mac-m1</id>
             <activation>
                 <os>
+                    <family>mac</family>
                     <arch>aarch64</arch>
                 </os>
             </activation>
             <properties>
                 <!-- Podman compatibility. Currently, mac file systems based on Plan 9 does not support SELinux labeling z and Z should not be used. When they transition to use virtiofsd, it should support SELinux labeling, and then we can use it for better container separation on the Mac.-->
                 <volume.access.modifier></volume.access.modifier>
+            </properties>
+        </profile>
 
+        <profile>
+            <id>aarch64</id>
+            <activation>
+                <os>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
                 <!-- See
                 https://github.com/microsoft/mssql-docker/issues/668 and https://stackoverflow.com/questions/65398641/docker-connect-sql-server-container-non-zero-code-1/66919852#66919852.
                 The MS SQL image segfaults on ARM. Azure Edge is not fully compatible, but it is better than not running the tests at all. -->

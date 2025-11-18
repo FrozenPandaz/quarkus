@@ -1,5 +1,4 @@
 import {css, html, QwcHotReloadElement} from 'qwc-hot-reload-element';
-import {RouterController} from 'router-controller';
 import {JsonRpc} from 'jsonrpc';
 import {StorageController} from 'storage-controller';
 import '@vaadin/icon';
@@ -10,7 +9,6 @@ import '@vaadin/text-area';
 import '@vaadin/progress-bar';
 import '@vaadin/tabs';
 import '@vaadin/tabsheet';
-import {notifier} from 'notifier';
 import {assistantState} from 'assistant-state';
 import 'qui-assistant-warning';
 import {observeState} from 'lit-element-state';
@@ -18,7 +16,6 @@ import {observeState} from 'lit-element-state';
 export class HibernateOrmHqlConsoleComponent extends observeState(QwcHotReloadElement) {
     jsonRpc = new JsonRpc(this);
     configJsonRpc = new JsonRpc("devui-configuration");
-    routerController = new RouterController(this);
     storageControl = new StorageController(this);
 
     static styles = css`
@@ -28,7 +25,7 @@ export class HibernateOrmHqlConsoleComponent extends observeState(QwcHotReloadEl
             padding: var(--lumo-space-s) var(--lumo-space-m);
         }
 
-        .dataSources {
+        .persistenceUnits {
             display: flex;
             flex-direction: column;
             gap: 20px;
@@ -58,13 +55,10 @@ export class HibernateOrmHqlConsoleComponent extends observeState(QwcHotReloadEl
         }
 
         .pu-selector, .entity-selector {
-            min-width: 200px;
-        }
-
-        .entity-suggestions {
             display: flex;
             flex-direction: column;
             gap: 5px;
+            min-width: 250px;
         }
 
         .suggestion-chips {
@@ -281,28 +275,29 @@ export class HibernateOrmHqlConsoleComponent extends observeState(QwcHotReloadEl
 
     connectedCallback() {
         super.connectedCallback();
-
-        const page = this.routerController.getCurrentPage();
-        if (page && page.metadata) {
-            this._allowHql = (page.metadata.allowHql === "true");
-        } else {
-            this._allowHql = false;
-        }
-
         this.hotReload();
     }
 
     hotReload() {
         this._loading = true;
-        this.jsonRpc.getInfo().then(response => {
-            this._persistenceUnits = response.result.persistenceUnits;
-            this._selectPersistenceUnit(this._persistenceUnits[0]);
-            this._loading = false;
+        const configPromise = this.configJsonRpc.getAllValues();
+        const infoPromise = this.jsonRpc.getInfo();
+        Promise.all([configPromise, infoPromise]).then(responses => {
+            const configValues = responses[0].result;
+            this._allowHql = configValues['quarkus.hibernate-orm.dev-ui.allow-hql'] === 'true';
+            const infoResponse = responses[1].result;
+            if (infoResponse) {
+                this._persistenceUnits = infoResponse.persistenceUnits.map(pu => {
+                    pu.label = pu.name + (pu.reactive ? ' (reactive)' : '');
+                    return pu;
+                });
+                this._selectPersistenceUnit(this._persistenceUnits[0]);
+            }
         }).catch(error => {
-            console.error("Failed to fetch persistence units:", error);
-            this._persistenceUnits = [];
+            console.error("Failed to fetch configuration or persistence units:", error);
+            this._addErrorMessage("Failed to fetch configuration or persistence units: " + error);
+        }).finally(() => {
             this._loading = false;
-            notifier.showErrorMessage("Failed to fetch persistence units: " + error, "bottom-start", 30);
         });
     }
 
@@ -329,12 +324,12 @@ export class HibernateOrmHqlConsoleComponent extends observeState(QwcHotReloadEl
 
     _renderChatInterface() {
         return html`
-            <div class="dataSources">
+            <div class="persistenceUnits">
                 <div class="chat-container bordered">
                     <div class="selector-section">
                         <div class="selector-row">
                             <div class="pu-selector">
-                                ${this._renderDatasourcesComboBox()}
+                                ${this._renderPUsComboBox()}
                             </div>
                             <div class="entity-selector">
                                 ${this._renderEntityTypes()}
@@ -646,14 +641,14 @@ export class HibernateOrmHqlConsoleComponent extends observeState(QwcHotReloadEl
         return string.charAt(0).toUpperCase() + string.slice(1);
     }
 
-    _renderDatasourcesComboBox() {
+    _renderPUsComboBox() {
         return html`
             <vaadin-combo-box
                     label="Persistence Unit"
-                    item-label-path="name"
-                    item-value-path="name"
+                    item-label-path="label"
+                    item-value-path="label"
                     .items="${this._persistenceUnits}"
-                    .value="${this._persistenceUnits[0]?.name || ''}"
+                    .value="${this._persistenceUnits[0]?.label || ''}"
                     @value-changed="${this._onPersistenceUnitChanged}"
                     .allowCustomValue="${false}"
             ></vaadin-combo-box>
@@ -662,15 +657,13 @@ export class HibernateOrmHqlConsoleComponent extends observeState(QwcHotReloadEl
 
     _renderEntityTypes() {
         return html`
-            <div class="entity-suggestions">
-                <vaadin-combo-box
-                        label="Entity Types"
-                        .items="${this._entityTypes}"
-                        placeholder="Select entity to use..."
-                        @value-changed="${(e) => this._insertEntityName(e.detail.value)}"
-                        clear-button-visible
-                ></vaadin-combo-box>
-            </div>
+            <vaadin-combo-box
+                    label="Entity Types"
+                    .items="${this._entityTypes}"
+                    placeholder="Select entity to use..."
+                    @value-changed="${(e) => this._insertEntityName(e.detail.value)}"
+                    clear-button-visible
+            ></vaadin-combo-box>
         `;
     }
 
@@ -686,7 +679,7 @@ export class HibernateOrmHqlConsoleComponent extends observeState(QwcHotReloadEl
 
     _onPersistenceUnitChanged(event) {
         const selectedValue = event.detail.value;
-        this._selectPersistenceUnit(this._persistenceUnits.find(unit => unit.name === selectedValue))
+        this._selectPersistenceUnit(this._persistenceUnits.find(unit => unit.label === selectedValue))
     }
 
     _selectPersistenceUnit(pu) {
@@ -735,7 +728,7 @@ export class HibernateOrmHqlConsoleComponent extends observeState(QwcHotReloadEl
     }
 
     _handleKeyDown(event) {
-        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        if (event.key === 'Enter') {
             event.preventDefault();
             this._sendQuery();
         }

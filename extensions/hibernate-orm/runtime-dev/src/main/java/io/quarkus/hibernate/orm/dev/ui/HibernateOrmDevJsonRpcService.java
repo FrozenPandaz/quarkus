@@ -1,6 +1,5 @@
 package io.quarkus.hibernate.orm.dev.ui;
 
-import static org.hibernate.internal.util.StringHelper.isBlank;
 import static org.hibernate.query.sqm.internal.SqmUtil.isMutation;
 
 import java.net.URI;
@@ -12,6 +11,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 
 import org.eclipse.microprofile.config.ConfigProvider;
@@ -29,9 +29,6 @@ import org.jboss.logging.Logger;
 import io.agroal.api.AgroalDataSource;
 import io.agroal.api.configuration.AgroalDataSourceConfiguration;
 import io.quarkus.assistant.runtime.dev.Assistant;
-import io.quarkus.devui.runtime.comms.JsonRpcMessage;
-import io.quarkus.devui.runtime.comms.JsonRpcRouter;
-import io.quarkus.devui.runtime.comms.MessageType;
 import io.quarkus.hibernate.orm.dev.HibernateOrmDevController;
 import io.quarkus.hibernate.orm.dev.HibernateOrmDevInfo;
 import io.quarkus.hibernate.orm.runtime.customized.QuarkusConnectionProvider;
@@ -45,7 +42,7 @@ public class HibernateOrmDevJsonRpcService {
     private final String allowedHost;
 
     @Inject
-    Optional<Assistant> assistant;
+    Instance<Optional<Assistant>> assistant;
 
     public HibernateOrmDevJsonRpcService() {
         this.isDev = LaunchMode.current().isDev() && !LaunchMode.current().isRemoteDev();
@@ -80,24 +77,37 @@ public class HibernateOrmDevJsonRpcService {
 
             {{metamodel}}
 
-            If a user asks a question that can be answered by querying this model, generate an HQL SELECT query.
-            The query must not include any input parameters.
-            Your response must only contain one field called `hql` containing the HQL query, nothing else, no explanation, and do not put the query in backticks.
-            Example response: {"hql": "select e from Entity e where e.property = :value"}
+
             """;
 
-    private static final String INTERACTIVE_PROMPT = """
+    private static final String ENGLISH_TO_HQL_USER_PROMPT = """
+                    If a user asks a question that can be answered by querying this model, generate an HQL SELECT query.
+                    The query must not include any input parameters.
+                    The field called `hql` should contain the HQL query, nothing else, no explanation, and do not put the query in backticks.
+                    Example hql field value: "select e from Entity e where e.property = :value"
+
+                    Here is the user input:
+            """;
+
+    static final record EnglishToHQLResponse(String hql) {
+    }
+
+    private static final String INTERACTIVE_USER_PROMPT = """
             The following HQL query:
             {{query}}
             returned the following data (in JSON format):
             {{data}}
 
             Based on the data above, answer this request in natural language:
+
             {{user_request}}
-            Your response must only contain one field called `answer` containing the natural language response.
+
+            The `naturalLanguageResponse` field should contain the natural language response.
             Do not include any HQL query in your response, nor suggest any further steps to take.
-            Example response: {"answer": "..."}
             """;
+
+    static final record InteractiveResponse(String naturalLanguageResponse) {
+    }
 
     /**
      * Execute an arbitrary {@code hql} query in the given {@code persistence unit}. The query might be both a selection or a
@@ -105,8 +115,8 @@ public class HibernateOrmDevJsonRpcService {
      * based on pageNumber and pageSize are returned. For mutation statements, a custom message including the number of affected
      * records is returned.
      * <p>
-     * This method handles result serialization (to JSON) internally, and returns a {@link JsonRpcMessage<String>} to avoid
-     * further processing by the {@link JsonRpcRouter}.
+     * This method handles result serialization (to JSON) internally, and returns a JsonRpc Message in Map format to avoid
+     * further processing by the Dev UI JsonRpcRouter.
      *
      * @param persistenceUnit The name of the persistence unit within which the query will be executed
      * @param query The user query (be it an HQL query or a plain-text statement when using assistant)
@@ -114,9 +124,9 @@ public class HibernateOrmDevJsonRpcService {
      * @param pageSize The page size, used for selection query results pagination
      * @param assistant Whether to use the assistant to generate the HQL query based on the user input
      * @param interactive Enable assistant's interactive mode, answering the original user request in natural language
-     * @return a {@link JsonRpcMessage<String>} containing the resulting {@link DataSet} serialized to JSON.
+     * @return a JsonRpcMessage containing the resulting {@link DataSet} serialized to JSON.
      */
-    public CompletionStage<JsonRpcMessage<String>> executeHQL(
+    public CompletionStage<Map<String, String>> executeHQL(
             String persistenceUnit,
             String query,
             Integer pageNumber,
@@ -151,7 +161,11 @@ public class HibernateOrmDevJsonRpcService {
         }
 
         if (Boolean.TRUE.equals(assistant)) {
-            Assistant a = this.assistant.orElse(null);
+            if (!this.assistant.isResolvable()) {
+                return errorDataSet(
+                        "The assistant is not available, please install the Chappie extension.");
+            }
+            Assistant a = this.assistant.get().orElse(null);
             if (a == null || !a.isAvailable()) {
                 return errorDataSet(
                         "The assistant is not available, please check the Quarkus assistant extension is correctly configured.");
@@ -159,14 +173,15 @@ public class HibernateOrmDevJsonRpcService {
 
             String metamodel = MetamodelJsonSerializerImpl.INSTANCE.toString(sf.getMetamodel());
 
-            CompletionStage<Map<String, String>> queryCompletionStage = a.assistBuilder()
+            CompletionStage<EnglishToHQLResponse> queryCompletionStage = a.assistBuilder()
                     .systemMessage(SYSTEM_MESSAGE)
-                    .userMessage(query)
+                    .userMessage(ENGLISH_TO_HQL_USER_PROMPT + query)
                     .addVariable("metamodel", metamodel)
+                    .responseType(EnglishToHQLResponse.class)
                     .assist();
 
             CompletionStage<DataSet> dataSetCompletionStage = queryCompletionStage.thenApply(response -> {
-                String hql = response.get("hql");
+                String hql = response.hql();
                 if (hql == null || hql.isBlank()) {
                     return new DataSet(null, null, -1, null, "The assistant did not return a valid HQL query.");
                 }
@@ -177,27 +192,28 @@ public class HibernateOrmDevJsonRpcService {
                 return dataSetCompletionStage.thenCompose(dataSet -> {
                     if (dataSet.error() != null) {
                         // If there was an error executing the query, return it directly
-                        return CompletableFuture.completedStage(toJson(dataSet));
+                        return CompletableFuture.completedStage(toMap(dataSet));
                     }
-                    CompletionStage<Map<String, String>> interactiveCompletionStage = a.assistBuilder()
+                    CompletionStage<InteractiveResponse> interactiveCompletionStage = a.assistBuilder()
                             .systemMessage(SYSTEM_MESSAGE)
                             .addVariable("metamodel", metamodel)
-                            .userMessage(INTERACTIVE_PROMPT)
+                            .userMessage(INTERACTIVE_USER_PROMPT)
                             .addVariable("query", dataSet.query())
                             .addVariable("data", dataSet.data())
                             .addVariable("user_request", query)
+                            .responseType(InteractiveResponse.class)
                             .assist();
                     return interactiveCompletionStage.thenApply(response -> {
-                        String answer = response.get("answer");
-                        return messageDataset(dataSet.query(), answer, dataSet.resultCount());
+                        String naturalLanguageResponse = response.naturalLanguageResponse();
+                        return messageDataset(dataSet.query(), naturalLanguageResponse, dataSet.resultCount());
                     });
                 });
             } else {
-                return dataSetCompletionStage.thenApply(HibernateOrmDevJsonRpcService::toJson);
+                return dataSetCompletionStage.thenApply(HibernateOrmDevJsonRpcService::toMap);
             }
         } else {
             DataSet result = executeHqlQuery(query, sf, pageNumber, pageSize);
-            return CompletableFuture.completedStage(toJson(result));
+            return CompletableFuture.completedStage(toMap(result));
         }
     }
 
@@ -260,15 +276,15 @@ public class HibernateOrmDevJsonRpcService {
         });
     }
 
-    private static CompletionStage<JsonRpcMessage<String>> errorDataSet(String errorMessage) {
-        return CompletableFuture.completedStage(toJson(new DataSet(null, null, -1, null, errorMessage)));
+    private static CompletionStage<Map<String, String>> errorDataSet(String errorMessage) {
+        return CompletableFuture.completedStage(toMap(new DataSet(null, null, -1, null, errorMessage)));
     }
 
-    private static JsonRpcMessage<String> messageDataset(String query, String message, long resultCount) {
-        return toJson(new DataSet(null, query, resultCount, message, null));
+    private static Map<String, String> messageDataset(String query, String message, long resultCount) {
+        return toMap(new DataSet(null, query, resultCount, message, null));
     }
 
-    private static JsonRpcMessage<String> toJson(DataSet dataSet) {
+    private static Map<String, String> toMap(DataSet dataSet) {
         StringBuilder jsonBuilder = new StringBuilder("{");
         jsonBuilder.append("\"resultCount\":").append(dataSet.resultCount());
         if (dataSet.data() != null) {
@@ -278,9 +294,13 @@ public class HibernateOrmDevJsonRpcService {
         appendIfNonNull(jsonBuilder, "message", dataSet.message());
         appendIfNonNull(jsonBuilder, "error", dataSet.error());
         jsonBuilder.append("}");
-        JsonRpcMessage<String> message = new JsonRpcMessage<>(jsonBuilder.toString(), MessageType.Response);
-        message.setAlreadySerialized(true);
-        return message;
+
+        Map<String, String> map = Map.of(
+                "response", jsonBuilder.toString(),
+                "messageType", "Response",
+                "alreadySerialized", "true");
+
+        return map;
     }
 
     private static void appendIfNonNull(StringBuilder sb, String fieldName, String value) {
@@ -300,23 +320,25 @@ public class HibernateOrmDevJsonRpcService {
             return true;
         }
 
+        if (ads == null)
+            return false;
+
         AgroalDataSourceConfiguration configuration = ads.getConfiguration();
         String jdbcUrl = configuration.connectionPoolConfiguration().connectionFactoryConfiguration().jdbcUrl();
 
+        if (jdbcUrl.startsWith("jdbc:h2:mem:") || jdbcUrl.startsWith("jdbc:h2:file:")
+                || jdbcUrl.startsWith("jdbc:h2:tcp://localhost")
+                || (allowedHost != null && !allowedHost.isBlank()
+                        && jdbcUrl.startsWith("jdbc:h2:tcp://" + allowedHost))
+                || jdbcUrl.startsWith("jdbc:derby:memory:")) {
+            return true;
+        }
+
+        String cleanUrl = jdbcUrl.replace("jdbc:", "").replaceFirst(";", "?").replace(";", "&");
+
         try {
-            if (jdbcUrl.startsWith("jdbc:h2:mem:") || jdbcUrl.startsWith("jdbc:h2:file:")
-                    || jdbcUrl.startsWith("jdbc:h2:tcp://localhost")
-                    || (allowedHost != null && !allowedHost.isBlank()
-                            && jdbcUrl.startsWith("jdbc:h2:tcp://" + allowedHost))
-                    || jdbcUrl.startsWith("jdbc:derby:memory:")) {
-                return true;
-            }
-
-            String cleanUrl = jdbcUrl.replace("jdbc:", "");
             URI uri = new URI(cleanUrl);
-
             String host = uri.getHost();
-
             return host != null && ((host.equals("localhost") || host.equals("127.0.0.1") || host.equals("::1")) ||
                     (allowedHost != null && !allowedHost.isBlank() && host.equalsIgnoreCase(allowedHost)));
 

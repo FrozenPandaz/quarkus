@@ -26,6 +26,7 @@ import io.quarkus.deployment.builditem.nativeimage.UnsupportedOSBuildItem;
 import io.quarkus.deployment.pkg.builditem.NativeImageRunnerBuildItem;
 import io.quarkus.deployment.pkg.builditem.ProcessInheritIODisabled;
 import io.quarkus.deployment.pkg.builditem.ProcessInheritIODisabledBuildItem;
+import io.quarkus.deployment.pkg.steps.NativeImageFutureDefault;
 import io.quarkus.deployment.pkg.steps.NativeOrNativeSourcesBuild;
 import io.quarkus.deployment.pkg.steps.NoopNativeImageBuildRunner;
 import io.quarkus.runtime.graal.GraalVM;
@@ -80,8 +81,8 @@ class AwtProcessor {
             BuildProducer<NativeImageResourcePatternsBuildItem> resourcePatternsBuildItemBuildProducer) {
         resourcePatternsBuildItemBuildProducer
                 .produce(NativeImageResourcePatternsBuildItem.builder()
-                        .includePattern(".*/iio-plugin.*properties$") // Texts for e.g. exceptions strings
-                        .includePattern(".*/.*pf$") // Default colour profiles
+                        .includeGlobs("**/iio-plugin*.properties", // Texts for e.g. exceptions strings
+                                "**/*.pf") // Default colour profiles
                         .build());
     }
 
@@ -306,5 +307,10 @@ class AwtProcessor {
                 .map(RuntimeInitializedPackageBuildItem::new)
                 .forEach(runtimeInitilizedPackages::produce);
         //@formatter:on
+    }
+
+    @BuildStep(onlyIf = NativeImageFutureDefault.CompleteReflectionTypes.class)
+    RuntimeInitializedPackageBuildItem runtimeInitializedClassesForCompleteReflectionTypes() {
+        return new RuntimeInitializedPackageBuildItem("sun.datatransfer");
     }
 }

@@ -1,7 +1,5 @@
 package io.quarkus.deployment.pkg.steps;
 
-import static io.quarkus.deployment.builditem.nativeimage.UnsupportedOSBuildItem.Arch.AMD64;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -38,6 +36,7 @@ import io.quarkus.deployment.builditem.nativeimage.NativeImageEnableModule;
 import io.quarkus.deployment.builditem.nativeimage.NativeImageSecurityProviderBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.NativeImageSystemPropertyBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.NativeMinimalJavaVersionBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.RuntimeInitializedPackageBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.UnsupportedOSBuildItem;
 import io.quarkus.deployment.pkg.NativeConfig;
 import io.quarkus.deployment.pkg.PackageConfig;
@@ -56,8 +55,10 @@ import io.quarkus.deployment.steps.NativeImageFeatureStep;
 import io.quarkus.maven.dependency.ResolvedDependency;
 import io.quarkus.runtime.LocalesBuildTimeConfig;
 import io.quarkus.runtime.graal.DisableLoggingFeature;
+import io.quarkus.runtime.graal.JVMChecksFeature;
 import io.quarkus.sbom.ApplicationComponent;
 import io.quarkus.sbom.ApplicationManifestConfig;
+import io.smallrye.common.cpu.CPU;
 import io.smallrye.common.os.OS;
 import io.smallrye.common.process.AbnormalExitException;
 import io.smallrye.common.process.ProcessBuilder;
@@ -89,6 +90,7 @@ public class NativeImageBuildStep {
     void nativeImageFeatures(BuildProducer<NativeImageFeatureBuildItem> features) {
         features.produce(new NativeImageFeatureBuildItem(NativeImageFeatureStep.GRAAL_FEATURE));
         features.produce(new NativeImageFeatureBuildItem(DisableLoggingFeature.class));
+        features.produce(new NativeImageFeatureBuildItem(JVMChecksFeature.class));
     }
 
     @BuildStep(onlyIf = NativeBuild.class)
@@ -186,6 +188,11 @@ public class NativeImageBuildStep {
                         .build());
     }
 
+    @BuildStep(onlyIf = NativeImageFutureDefault.RunTimeInitializeFileSystemProvider.class)
+    RuntimeInitializedPackageBuildItem runtimeInitialized() {
+        return new RuntimeInitializedPackageBuildItem("io.smallrye.common.classloader");
+    }
+
     @BuildStep
     public NativeImageBuildItem build(NativeConfig nativeConfig, LocalesBuildTimeConfig localesBuildTimeConfig,
             NativeImageSourceJarBuildItem nativeImageSourceJarBuildItem,
@@ -246,14 +253,6 @@ public class NativeImageBuildStep {
         checkGraalVMVersion(graalVMVersion);
 
         try {
-            if (nativeConfig.cleanupServer()) {
-                log.warn(
-                        "Your application is setting the deprecated 'quarkus.native.cleanup-server' configuration key"
-                                + " to true. Please consider removing this configuration key as it is ignored"
-                                + " (The Native image build server is always disabled) and it will be removed in a"
-                                + " future Quarkus version.");
-            }
-
             NativeImageInvokerInfo commandAndExecutable = new NativeImageInvokerInfo.Builder()
                     .setNativeConfig(nativeConfig)
                     .setLocalesBuildTimeConfig(localesBuildTimeConfig)
@@ -717,26 +716,14 @@ public class NativeImageBuildStep {
             public NativeImageInvokerInfo build() {
                 List<String> nativeImageArgs = new ArrayList<>();
                 boolean enableSslNative = false;
-                boolean inlineBeforeAnalysis = nativeConfig.inlineBeforeAnalysis();
                 boolean addAllCharsets = nativeConfig.addAllCharsets();
                 boolean enableHttpsUrlHandler = nativeConfig.enableHttpsUrlHandler();
                 for (NativeImageSystemPropertyBuildItem prop : nativeImageProperties) {
                     //todo: this should be specific build items
                     if (prop.getKey().equals("quarkus.ssl.native") && prop.getValue() != null) {
                         enableSslNative = Boolean.parseBoolean(prop.getValue());
-                    } else if (prop.getKey().equals("quarkus.jni.enable") && prop.getValue().equals("false")) {
-                        log.warn("Your application is setting the deprecated 'quarkus.jni.enable' configuration key to false."
-                                + " Please consider removing this configuration key as it is ignored (JNI is always enabled) and it"
-                                + " will be removed in a future Quarkus version.");
-                    } else if (prop.getKey().equals("quarkus.native.enable-all-security-services") && prop.getValue() != null) {
-                        log.warn(
-                                "Your application is setting the deprecated 'quarkus.native.enable-all-security-services' configuration key."
-                                        + " Please consider removing this configuration key as it is ignored and it"
-                                        + " will be removed in a future Quarkus version.");
                     } else if (prop.getKey().equals("quarkus.native.enable-all-charsets") && prop.getValue() != null) {
                         addAllCharsets |= Boolean.parseBoolean(prop.getValue());
-                    } else if (prop.getKey().equals("quarkus.native.inline-before-analysis") && prop.getValue() != null) {
-                        inlineBeforeAnalysis = Boolean.parseBoolean(prop.getValue());
                     } else {
                         // todo maybe just -D is better than -J-D in this case
                         if (prop.getValue() == null) {
@@ -823,12 +810,9 @@ public class NativeImageBuildStep {
                 // Generate a file with the list of built artifacts
                 addExperimentalVMOption(nativeImageArgs, "-H:+GenerateBuildArtifactsFile");
 
-                // only available in GraalVM 23.1.0+
-                if (graalVMVersion.compareTo(GraalVM.Version.VERSION_23_1_0) >= 0) {
-                    if (graalVMVersion.compareTo(GraalVM.Version.VERSION_24_0_0) < 0) {
-                        // Enabled by default in GraalVM 24.0.0.
-                        nativeImageArgs.add("--strict-image-heap");
-                    }
+                if (graalVMVersion.compareTo(GraalVM.Version.VERSION_24_0_0) < 0) {
+                    // Enabled by default in GraalVM 24.0.0.
+                    nativeImageArgs.add("--strict-image-heap");
                 }
 
                 /*
@@ -860,7 +844,7 @@ public class NativeImageBuildStep {
                  */
                 if (graalVMVersion.compareTo(GraalVM.Version.VERSION_24_2_0) >= 0
                         && graalVMVersion.compareTo(GraalVM.Version.VERSION_25_0_0) < 0
-                        && AMD64.active) {
+                        && (CPU.host() == CPU.x64)) {
                     addExperimentalVMOption(nativeImageArgs, "-H:+ForeignAPISupport");
                 }
 
@@ -922,28 +906,12 @@ public class NativeImageBuildStep {
                 if (!protocols.isEmpty()) {
                     nativeImageArgs.add("--enable-url-protocols=" + String.join(",", protocols));
                 }
-                if (!inlineBeforeAnalysis) {
-                    addExperimentalVMOption(nativeImageArgs, "-H:-InlineBeforeAnalysis");
-                }
                 if (!pie.isEmpty()) {
                     nativeImageArgs.add("-H:NativeLinkerOption=" + pie);
                 }
 
                 if (!nativeConfig.enableIsolates()) {
                     addExperimentalVMOption(nativeImageArgs, "-H:-SpawnIsolates");
-                }
-                if (!nativeConfig.enableJni()) {
-                    log.warn(
-                            "Your application is setting the deprecated 'quarkus.native.enable-jni' configuration key to false."
-                                    + " Please consider removing this configuration key as it is ignored (JNI is always enabled) and it"
-                                    + " will be removed in a future Quarkus version.");
-                }
-                if (nativeConfig.enableServer()) {
-                    log.warn(
-                            "Your application is setting the deprecated 'quarkus.native.enable-server' configuration key to true."
-                                    + " Please consider removing this configuration key as it is ignored"
-                                    + " (The Native image build server is always disabled) and it"
-                                    + " will be removed in a future Quarkus version.");
                 }
                 if (nativeConfig.enableVmInspection()) {
                     addExperimentalVMOption(nativeImageArgs, "-H:+AllowVMInspection");
@@ -993,20 +961,8 @@ public class NativeImageBuildStep {
 
                 if (nativeConfig.autoServiceLoaderRegistration()) {
                     addExperimentalVMOption(nativeImageArgs, "-H:+UseServiceLoaderFeature");
-                    if (graalVMVersion.compareTo(GraalVM.Version.VERSION_23_1_0) < 0) {
-                        // When enabling, at least print what exactly is being added. Only possible in <23.1.0
-                        nativeImageArgs.add("-H:+TraceServiceLoaderFeature");
-                    }
                 } else {
                     addExperimentalVMOption(nativeImageArgs, "-H:-UseServiceLoaderFeature");
-                }
-                // This option has no effect on GraalVM 23.1+
-                if (graalVMVersion.compareTo(GraalVM.Version.VERSION_23_1_0) < 0) {
-                    if (nativeConfig.fullStackTraces()) {
-                        nativeImageArgs.add("-H:+StackTrace");
-                    } else {
-                        nativeImageArgs.add("-H:-StackTrace");
-                    }
                 }
 
                 if (nativeConfig.enableDashboardDump()) {
@@ -1113,13 +1069,9 @@ public class NativeImageBuildStep {
             }
 
             private void addExperimentalVMOption(List<String> nativeImageArgs, String option) {
-                if (graalVMVersion.compareTo(GraalVM.Version.VERSION_23_1_0) >= 0) {
-                    nativeImageArgs.add("-H:+UnlockExperimentalVMOptions");
-                }
+                nativeImageArgs.add("-H:+UnlockExperimentalVMOptions");
                 nativeImageArgs.add(option);
-                if (graalVMVersion.compareTo(GraalVM.Version.VERSION_23_1_0) >= 0) {
-                    nativeImageArgs.add("-H:-UnlockExperimentalVMOptions");
-                }
+                nativeImageArgs.add("-H:-UnlockExperimentalVMOptions");
             }
         }
     }
