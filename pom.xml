@@ -171,7 +171,7 @@
       <plugin>
         <groupId>dev.nx.maven</groupId>
         <artifactId>nx-maven-plugin</artifactId>
-        <version>0.0.1</version>
+        <version>0.0.11-SNAPSHOT</version>
       </plugin>
     </plugins>
         </pluginManagement>
