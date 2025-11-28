@@ -1,0 +1,1470 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot key Maven projects structure 1`] = `
+[
+  {
+    "hasDependencies": false,
+    "hasTargets": true,
+    "key": "quarkus-parent",
+    "name": "io.quarkus:quarkus-parent",
+    "targetCount": 65,
+    "type": "lib",
+  },
+  {
+    "hasDependencies": true,
+    "hasTargets": true,
+    "key": "quarkus-core",
+    "name": "io.quarkus:quarkus-core-deployment",
+    "targetCount": 68,
+    "type": "app",
+  },
+  {
+    "hasDependencies": false,
+    "hasTargets": true,
+    "key": "arc-parent",
+    "name": "io.quarkus.arc:arc-parent",
+    "targetCount": 67,
+    "type": "lib",
+  },
+  {
+    "hasDependencies": true,
+    "hasTargets": true,
+    "key": "arc",
+    "name": "io.quarkus:quarkus-hibernate-search-backend-elasticsearch-common-deployment",
+    "targetCount": 67,
+    "type": "app",
+  },
+]
+`;
+
+exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot overall project statistics 1`] = `
+{
+  "hasDependencies": true,
+  "hasNodes": true,
+  "hasValidGraph": true,
+  "projectsWithDependencies": 1273,
+  "projectsWithTargets": 1302,
+  "totalProjects": 1302,
+}
+`;
+
+exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quarkus-core project configuration 1`] = `
+{
+  "data": {
+    "implicitDependencies": [],
+    "metadata": {
+      "artifactId": "quarkus-core",
+      "groupId": "io.quarkus",
+      "packaging": "jar",
+      "targetGroups": {},
+      "version": "999-SNAPSHOT",
+    },
+    "name": "io.quarkus:quarkus-core",
+    "projectType": "application",
+    "root": "core/runtime",
+    "tags": [],
+    "targets": {
+      "build-helper:add-source": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run build-helper:add-source plugin goal",
+        },
+        "options": {
+          "command": "mvn build-helper:add-source",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "build-helper:add-test-source": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run build-helper:add-test-source plugin goal",
+        },
+        "options": {
+          "command": "mvn build-helper:add-test-source",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "buildnumber:create@get-scm-revision": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run buildnumber:create plugin goal",
+        },
+        "options": {
+          "command": "mvn buildnumber:create",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "clean": {
+        "configurations": {},
+        "dependsOn": [
+          "pre-clean",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven clean lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn clean",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "compile": {
+        "configurations": {},
+        "dependsOn": [
+          "process-resources",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven compile lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn compile",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "deploy": {
+        "configurations": {},
+        "dependsOn": [
+          "install",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven deploy lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn deploy",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "forbiddenapis:check@verify-forbidden-apis": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run forbiddenapis:check plugin goal",
+        },
+        "options": {
+          "command": "mvn forbiddenapis:check",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "formatter:format@default": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run formatter:format plugin goal",
+        },
+        "options": {
+          "command": "mvn formatter:format",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "generate-resources": {
+        "configurations": {},
+        "dependsOn": [
+          "process-sources",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven generate-resources lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn generate-resources",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "generate-sources": {
+        "configurations": {},
+        "dependsOn": [
+          "initialize",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven generate-sources lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn generate-sources",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "generate-test-resources": {
+        "configurations": {},
+        "dependsOn": [
+          "process-test-sources",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven generate-test-resources lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn generate-test-resources",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "generate-test-sources": {
+        "configurations": {},
+        "dependsOn": [
+          "process-classes",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven generate-test-sources lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn generate-test-sources",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "impsort:sort@sort-imports": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run impsort:sort plugin goal",
+        },
+        "options": {
+          "command": "mvn impsort:sort",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "initialize": {
+        "configurations": {},
+        "dependsOn": [
+          "validate",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven initialize lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn initialize",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "install": {
+        "configurations": {},
+        "dependsOn": [
+          "verify",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven install lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn install",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "integration-test": {
+        "configurations": {},
+        "dependsOn": [
+          "pre-integration-test",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven integration-test lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn integration-test",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-clean:clean": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-clean:clean plugin goal",
+        },
+        "options": {
+          "command": "mvn clean:clean",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-clean:clean@default-clean": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-clean:clean@default-clean plugin goal",
+        },
+        "options": {
+          "command": "mvn clean",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-compiler:compile": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-compiler:compile plugin goal",
+        },
+        "options": {
+          "command": "mvn compiler:compile",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-compiler:compile@default-compile": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-compiler:compile@default-compile plugin goal",
+        },
+        "options": {
+          "command": "mvn compile",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-compiler:testCompile": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-compiler:testCompile plugin goal",
+        },
+        "options": {
+          "command": "mvn compiler:testCompile",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-compiler:testCompile@default-testCompile": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-compiler:testCompile@default-testCompile plugin goal",
+        },
+        "options": {
+          "command": "mvn test-compile",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-dependency:analyze": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-dependency:analyze plugin goal",
+        },
+        "options": {
+          "command": "mvn dependency:analyze",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-dependency:copy-dependencies": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-dependency:copy-dependencies plugin goal",
+        },
+        "options": {
+          "command": "mvn dependency:copy-dependencies",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-deploy:deploy": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-deploy:deploy plugin goal",
+        },
+        "options": {
+          "command": "mvn deploy:deploy",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-deploy:deploy@default-deploy": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-deploy:deploy@default-deploy plugin goal",
+        },
+        "options": {
+          "command": "mvn deploy",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-enforcer:enforce": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-enforcer:enforce plugin goal",
+        },
+        "options": {
+          "command": "mvn enforcer:enforce",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-enforcer:enforce@enforce": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-enforcer:enforce@enforce plugin goal",
+        },
+        "options": {
+          "command": "mvn enforcer:enforce",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-failsafe:integration-test": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-failsafe:integration-test plugin goal",
+        },
+        "options": {
+          "command": "mvn failsafe:integration-test",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-failsafe:verify": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-failsafe:verify plugin goal",
+        },
+        "options": {
+          "command": "mvn failsafe:verify",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-install:install": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-install:install plugin goal",
+        },
+        "options": {
+          "command": "mvn install:install",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-install:install@default-install": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-install:install@default-install plugin goal",
+        },
+        "options": {
+          "command": "mvn install",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-jar:jar": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-jar:jar plugin goal",
+        },
+        "options": {
+          "command": "mvn jar:jar",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-jar:jar@default-jar": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-jar:jar@default-jar plugin goal",
+        },
+        "options": {
+          "command": "mvn package",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-javadoc:jar": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-javadoc:jar plugin goal",
+        },
+        "options": {
+          "command": "mvn javadoc:jar",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-javadoc:jar@attach-javadocs": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-javadoc:jar@attach-javadocs plugin goal",
+        },
+        "options": {
+          "command": "mvn javadoc:jar",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-resources:resources": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-resources:resources plugin goal",
+        },
+        "options": {
+          "command": "mvn resources:resources",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-resources:resources@default-resources": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-resources:resources@default-resources plugin goal",
+        },
+        "options": {
+          "command": "mvn process-resources",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-resources:testResources": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-resources:testResources plugin goal",
+        },
+        "options": {
+          "command": "mvn resources:testResources",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-resources:testResources@default-testResources": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-resources:testResources@default-testResources plugin goal",
+        },
+        "options": {
+          "command": "mvn process-test-resources",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-site:deploy@default-deploy": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-site:deploy@default-deploy plugin goal",
+        },
+        "options": {
+          "command": "mvn site-deploy",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-site:site": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-site:site plugin goal",
+        },
+        "options": {
+          "command": "mvn site:site",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-site:site@default-site": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-site:site@default-site plugin goal",
+        },
+        "options": {
+          "command": "mvn site",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-source:jar": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-source:jar plugin goal",
+        },
+        "options": {
+          "command": "mvn source:jar",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-source:jar-no-fork": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-source:jar-no-fork plugin goal",
+        },
+        "options": {
+          "command": "mvn source:jar-no-fork",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-source:jar-no-fork@attach-sources": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-source:jar-no-fork@attach-sources plugin goal",
+        },
+        "options": {
+          "command": "mvn source:jar-no-fork",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-surefire:test": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-surefire:test plugin goal",
+        },
+        "options": {
+          "command": "mvn surefire:test",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "maven-surefire:test@default-test": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run maven-surefire:test@default-test plugin goal",
+        },
+        "options": {
+          "command": "mvn test",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "package": {
+        "configurations": {},
+        "dependsOn": [
+          "prepare-package",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven package lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn package",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "post-clean": {
+        "configurations": {},
+        "dependsOn": [
+          "clean",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven post-clean lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn post-clean",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "post-integration-test": {
+        "configurations": {},
+        "dependsOn": [
+          "integration-test",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven post-integration-test lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn post-integration-test",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "post-site": {
+        "configurations": {},
+        "dependsOn": [
+          "site",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven post-site lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn post-site",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "pre-clean": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven pre-clean lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn pre-clean",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "pre-integration-test": {
+        "configurations": {},
+        "dependsOn": [
+          "package",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven pre-integration-test lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn pre-integration-test",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "pre-site": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven pre-site lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn pre-site",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "prepare-package": {
+        "configurations": {},
+        "dependsOn": [
+          "test",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven prepare-package lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn prepare-package",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "process-classes": {
+        "configurations": {},
+        "dependsOn": [
+          "compile",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven process-classes lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn process-classes",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "process-resources": {
+        "configurations": {},
+        "dependsOn": [
+          "generate-resources",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven process-resources lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn process-resources",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "process-sources": {
+        "configurations": {},
+        "dependsOn": [
+          "generate-sources",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven process-sources lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn process-sources",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "process-test-classes": {
+        "configurations": {},
+        "dependsOn": [
+          "test-compile",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven process-test-classes lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn process-test-classes",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "process-test-resources": {
+        "configurations": {},
+        "dependsOn": [
+          "generate-test-resources",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven process-test-resources lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn process-test-resources",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "process-test-sources": {
+        "configurations": {},
+        "dependsOn": [
+          "generate-test-sources",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven process-test-sources lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn process-test-sources",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "quarkus-extension:build": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run quarkus-extension:build plugin goal",
+        },
+        "options": {
+          "command": "mvn quarkus-extension:build",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "quarkus-extension:dev": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run quarkus-extension:dev plugin goal",
+        },
+        "options": {
+          "command": "mvn quarkus-extension:dev",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "quarkus-extension:extension-descriptor@generate-extension-descriptor": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run quarkus-extension:extension-descriptor@generate-extension-descriptor plugin goal",
+        },
+        "options": {
+          "command": "mvn quarkus-extension:extension-descriptor",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "quarkus:build": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run quarkus:build plugin goal",
+        },
+        "options": {
+          "command": "mvn quarkus:build",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "quarkus:dev": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "technologies": [
+            "maven",
+          ],
+          "type": "Run quarkus:dev plugin goal",
+        },
+        "options": {
+          "command": "mvn quarkus:dev",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "site": {
+        "configurations": {},
+        "dependsOn": [
+          "pre-site",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven site lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn site",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "site-deploy": {
+        "configurations": {},
+        "dependsOn": [
+          "post-site",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven site-deploy lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn site-deploy",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "test": {
+        "configurations": {},
+        "dependsOn": [
+          "process-test-classes",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven test lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn test",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "test-compile": {
+        "configurations": {},
+        "dependsOn": [
+          "process-test-resources",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven test-compile lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn test-compile",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "validate": {
+        "configurations": {},
+        "dependsOn": [],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven validate lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn validate",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+      "verify": {
+        "configurations": {},
+        "dependsOn": [
+          "post-integration-test",
+        ],
+        "executor": "nx:run-commands",
+        "inputs": [],
+        "metadata": {
+          "description": "Run Maven verify lifecycle phase",
+          "technologies": [
+            "maven",
+          ],
+        },
+        "options": {
+          "command": "mvn verify",
+          "cwd": "core/runtime",
+        },
+        "outputs": [],
+        "parallelism": true,
+      },
+    },
+  },
+  "name": "io.quarkus:quarkus-core",
+  "type": "app",
+}
+`;
+
+exports[`Maven Plugin E2E Smoke Tests > Snapshot Testing > should snapshot quarkus-core project dependencies 1`] = `
+[
+  {
+    "source": "io.quarkus:quarkus-core",
+    "target": "io.quarkus:quarkus-ide-launcher",
+    "type": "STATIC",
+  },
+  {
+    "source": "io.quarkus:quarkus-core",
+    "target": "io.quarkus:quarkus-development-mode-spi",
+    "type": "STATIC",
+  },
+  {
+    "source": "io.quarkus:quarkus-core",
+    "target": "io.quarkus:quarkus-bootstrap-runner",
+    "type": "STATIC",
+  },
+  {
+    "source": "io.quarkus:quarkus-core",
+    "target": "io.quarkus:quarkus-extension-processor",
+    "type": "STATIC",
+  },
+  {
+    "source": "io.quarkus:quarkus-core",
+    "target": "io.quarkus:quarkus-bom",
+    "type": "STATIC",
+  },
+]
+`;

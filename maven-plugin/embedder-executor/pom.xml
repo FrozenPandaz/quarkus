@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.quarkus</groupId>
+        <artifactId>nx-maven-plugin</artifactId>
+        <version>999-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>embedder-executor</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Embedder Executor</name>
+    <description>Maven Embedder API implementation for direct Maven integration</description>
+
+    <dependencies>
+        <!-- Dependency on graph-analyzer for model classes -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>graph-analyzer</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Maven Core -->
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-core</artifactId>
+        </dependency>
+
+        <!-- Maven Embedder -->
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-embedder</artifactId>
+        </dependency>
+
+        <!-- Maven Compat - Required for proper Plexus container initialization -->
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-compat</artifactId>
+            <version>${maven.version}</version>
+            <exclusions>
+                <!-- Exclude resolver-provider to avoid conflicts with maven-core -->
+                <exclusion>
+                    <groupId>org.apache.maven</groupId>
+                    <artifactId>maven-resolver-provider</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- Eclipse Sisu for proper Guice-based dependency injection (Maven's internal DI framework) -->
+        <dependency>
+            <groupId>org.eclipse.sisu</groupId>
+            <artifactId>org.eclipse.sisu.plexus</artifactId>
+            <version>0.9.0.M3</version>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.sisu</groupId>
+            <artifactId>org.eclipse.sisu.inject</artifactId>
+            <version>0.9.0.M3</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.inject</groupId>
+            <artifactId>guice</artifactId>
+            <version>5.1.0</version>
+        </dependency>
+        
+        <!-- Plexus Container - Required for DefaultPlexusContainer with proper constructor -->
+        <dependency>
+            <groupId>org.codehaus.plexus</groupId>
+            <artifactId>plexus-container-default</artifactId>
+            <version>2.1.1</version>
+        </dependency>
+
+        <!-- JSON output -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+        </dependency>
+
+        <!-- JSR-330 Dependency Injection -->
+        <dependency>
+            <groupId>javax.inject</groupId>
+            <artifactId>javax.inject</artifactId>
+        </dependency>
+
+        <!-- Kotlin -->
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-stdlib</artifactId>
+        </dependency>
+
+        <!-- Test Dependencies -->
+        <dependency>
+            <groupId>org.apache.maven.plugin-testing</groupId>
+            <artifactId>maven-plugin-testing-harness</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-test-junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.eclipse.sisu</groupId>
+                <artifactId>sisu-maven-plugin</artifactId>
+                <version>0.9.0.M3</version>
+                <executions>
+                    <execution>
+                        <id>generate-index</id>
+                        <goals>
+                            <goal>main-index</goal>
+                            <goal>test-index</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
