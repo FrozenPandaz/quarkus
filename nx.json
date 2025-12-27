@@ -1,0 +1,23 @@
+{
+  "plugins": [
+    {
+      "plugin": "./maven-plugin",
+      "options": {
+        "mavenExecutable": "mvn"
+      }
+    }
+  ],
+  "pluginsConfig": {
+    "@nx/js": {
+      "analyzeSourceFiles": false,
+      "analyzePackageJson": false,
+      "analyzeLockfile": false
+    }
+  },
+  "workspaceLayout": {
+    "projectNameAndRootFormat": "as-provided"
+  },
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "nxCloudUrl": "http://localhost:4203",
+  "nxCloudId": "68663076b897a552b0bff61a"
+}

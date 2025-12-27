@@ -139,6 +139,7 @@
 
         <!-- Misc. -->
         <module>docs</module>
+        <module>maven-plugin</module>
     </modules>
 
     <repositories>
