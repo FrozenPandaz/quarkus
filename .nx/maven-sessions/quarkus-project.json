@@ -1,0 +1,39 @@
+{
+  "sessionId": "quarkus-project",
+  "timestamp": 1751928698916,
+  "projects": [
+    "quarkus-project"
+  ],
+  "goals": [],
+  "artifacts": [],
+  "dependencies": [],
+  "properties": {},
+  "sessionProperties": {
+    "nx.task.task-0-quarkus-project.goals": "validate",
+    "nx.task.task-0-quarkus-project.projectRoot": ".",
+    "nx.task.task-0-quarkus-project.project.artifactId": "quarkus-project",
+    "nx.task.task-0-quarkus-project.project.groupId": "io.quarkus",
+    "nx.task.task-0-quarkus-project.project.version": "999-SNAPSHOT",
+    "nx.task.task-0-quarkus-project.property.nx.task.task-0-quarkus-project.goals": "validate",
+    "nx.task.task-0-quarkus-project.property.nx.task.task-0-quarkus-project.projectRoot": ".",
+    "nx.task.task-0-quarkus-project.property.nx.task.task-0-quarkus-project.project.artifactId": "quarkus-project",
+    "nx.task.task-0-quarkus-project.property.nx.task.task-0-quarkus-project.project.groupId": "io.quarkus",
+    "nx.task.task-0-quarkus-project.property.nx.task.task-0-quarkus-project.project.version": "999-SNAPSHOT",
+    "nx.task.task-0-quarkus-project.property.nx.result.task-0-quarkus-project.success": "false",
+    "nx.task.task-0-quarkus-project.property.nx.result.task-0-quarkus-project.duration": "21.0",
+    "nx.task.task-0-quarkus-project.property.nx.result.task-0-quarkus-project.goalCount": "1.0",
+    "nx.task.task-0-quarkus-project.property.nx.session.timestamp": "1.751927933352E12",
+    "nx.task.task-0-quarkus-project.property.nx.session.taskCount": "1.0",
+    "nx.task.task-0-quarkus-project.property.nx.session.resultCount": "1.0",
+    "nx.task.task-0-quarkus-project.property.nx.session.successfulTasks": "0.0",
+    "nx.task.task-0-quarkus-project.property.nx.session.failedTasks": "1.0",
+    "nx.result.task-0-quarkus-project.success": false,
+    "nx.result.task-0-quarkus-project.duration": 20,
+    "nx.result.task-0-quarkus-project.goalCount": 1,
+    "nx.session.timestamp": 1751928698916,
+    "nx.session.taskCount": 1,
+    "nx.session.resultCount": 1,
+    "nx.session.successfulTasks": 0,
+    "nx.session.failedTasks": 1
+  }
+}

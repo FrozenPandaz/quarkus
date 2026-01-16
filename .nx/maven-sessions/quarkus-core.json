@@ -1,0 +1,26 @@
+{
+  "sessionId": "quarkus-core",
+  "timestamp": 1751945349480,
+  "projects": [
+    "quarkus-core"
+  ],
+  "goals": [],
+  "artifacts": [],
+  "dependencies": [],
+  "properties": {},
+  "sessionProperties": {
+    "nx.task.task-0-quarkus-core.goals": "org.apache.maven.plugins:maven-enforcer-plugin:enforce@enforce",
+    "nx.task.task-0-quarkus-core.projectRoot": "core/runtime",
+    "nx.task.task-0-quarkus-core.project.artifactId": "quarkus-core",
+    "nx.task.task-0-quarkus-core.project.groupId": "io.quarkus",
+    "nx.task.task-0-quarkus-core.project.version": "999-SNAPSHOT",
+    "nx.result.task-0-quarkus-core.success": false,
+    "nx.result.task-0-quarkus-core.duration": 20,
+    "nx.result.task-0-quarkus-core.goalCount": 1,
+    "nx.session.timestamp": 1751945349480,
+    "nx.session.taskCount": 1,
+    "nx.session.resultCount": 1,
+    "nx.session.successfulTasks": 0,
+    "nx.session.failedTasks": 1
+  }
+}
